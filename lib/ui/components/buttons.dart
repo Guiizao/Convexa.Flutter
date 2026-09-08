@@ -133,6 +133,7 @@ class AppIconButton extends StatefulWidget {
   final double size;
   final Color? color;
   final int badgeCount;
+  final bool loading;
 
   const AppIconButton({
     super.key,
@@ -142,6 +143,7 @@ class AppIconButton extends StatefulWidget {
     this.size = 38,
     this.color,
     this.badgeCount = 0,
+    this.loading = false,
   });
 
   @override
@@ -173,8 +175,18 @@ class _AppIconButtonState extends State<AppIconButton> {
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
-              Icon(widget.icon,
-                  size: widget.size * 0.44, color: widget.color ?? c.t2),
+              if (widget.loading)
+                SizedBox(
+                  width: widget.size * 0.42,
+                  height: widget.size * 0.42,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: widget.color ?? c.t2,
+                  ),
+                )
+              else
+                Icon(widget.icon,
+                    size: widget.size * 0.44, color: widget.color ?? c.t2),
               if (widget.badgeCount > 0)
                 Positioned(
                   top: -3,

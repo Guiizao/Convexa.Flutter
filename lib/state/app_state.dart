@@ -32,6 +32,9 @@ class AppState extends ChangeNotifier {
 
   LoadStatus _status = LoadStatus.idle;
   String? _errorMessage;
+  bool _sessionExpired = false;
+  bool _refreshing = false;
+  DateTime? _lastSyncedAt;
 
   DateTime _selectedDate = _today();
   DateTime _visibleMonth = DateTime(_today().year, _today().month);
@@ -51,6 +54,9 @@ class AppState extends ChangeNotifier {
   Session? get session => _session;
   LoadStatus get status => _status;
   String? get errorMessage => _errorMessage;
+  bool get isRefreshing => _refreshing;
+  DateTime? get lastSyncedAt => _lastSyncedAt;
+  bool get isLoading => _status == LoadStatus.loading;
 
   DateTime get selectedDate => _selectedDate;
   DateTime get visibleMonth => _visibleMonth;
@@ -124,13 +130,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void signOut() {
+  void signOut({String? message}) {
     auth.signOut();
     _ctx.demoMode = false;
     _demoMode = false;
     _session = null;
-    _status = LoadStatus.idle;
-    _errorMessage = null;
+    _status = message == null ? LoadStatus.idle : LoadStatus.failed;
+    _errorMessage = message;
+    _sessionExpired = false;
+    _refreshing = false;
+    _lastSyncedAt = null;
     _serviceList = const [];
     _appointments = const [];
     _bookedDays = const {};
@@ -142,6 +151,32 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Token recusado no meio da sessão: derruba o acesso em vez de deixar o
+  /// painel mostrando tela vazia como se não houvesse dado.
+  bool _handleAuthFailure(ApiException e) {
+    if (!e.isUnauthorized || _demoMode) return false;
+    _sessionExpired = true;
+    return true;
+  }
+
+  /// Falha numa ação de escrita: se o token morreu, derruba a sessão em vez de
+  /// deixar o usuário tentando salvar num painel que já não tem acesso.
+  String _mutationError(ApiException e) {
+    if (e.isUnauthorized && !_demoMode) {
+      signOut(message: 'Sua sessão expirou. Entre novamente.');
+    }
+    return e.message;
+  }
+
+  void _finishLoadCycle() {
+    if (_sessionExpired) {
+      _sessionExpired = false;
+      signOut(message: 'Sua sessão expirou. Entre novamente.');
+      return;
+    }
+    _lastSyncedAt = DateTime.now();
+  }
+
   Future<void> _loadWorkspace() async {
     await Future.wait([
       _loadServices(),
@@ -150,20 +185,24 @@ class AppState extends ChangeNotifier {
       _loadSettings(),
       _loadMetrics(),
     ]);
+    _finishLoadCycle();
   }
 
   Future<void> refresh() async {
-    _status = LoadStatus.loading;
+    if (_refreshing) return;
+    _refreshing = true;
     notifyListeners();
     await _loadWorkspace();
-    _status = LoadStatus.ready;
+    _refreshing = false;
+    if (_session != null) _status = LoadStatus.ready;
     notifyListeners();
   }
 
   Future<void> _loadServices() async {
     try {
       _serviceList = await services.list();
-    } on ApiException {
+    } on ApiException catch (e) {
+      _handleAuthFailure(e);
       _serviceList = const [];
     }
   }
@@ -171,7 +210,8 @@ class AppState extends ChangeNotifier {
   Future<void> _loadDay(DateTime date) async {
     try {
       _appointments = await schedule.byDate(date);
-    } on ApiException {
+    } on ApiException catch (e) {
+      _handleAuthFailure(e);
       _appointments = const [];
     }
     try {
@@ -181,7 +221,8 @@ class AppState extends ChangeNotifier {
             ? _serviceList.where((s) => s.active).map((s) => s.id).toSet()
             : loaded.activeServiceIds,
       );
-    } on ApiException {
+    } on ApiException catch (e) {
+      _handleAuthFailure(e);
       _shift = WorkShift.initial(date).copyWith(
         activeServiceIds:
             _serviceList.where((s) => s.active).map((s) => s.id).toSet(),
@@ -192,7 +233,8 @@ class AppState extends ChangeNotifier {
   Future<void> _loadMonth(DateTime month) async {
     try {
       _bookedDays = await schedule.bookedDaysOfMonth(month);
-    } on ApiException {
+    } on ApiException catch (e) {
+      _handleAuthFailure(e);
       _bookedDays = const {};
     }
   }
@@ -200,7 +242,8 @@ class AppState extends ChangeNotifier {
   Future<void> _loadSettings() async {
     try {
       _settings = await settingsRepo.load();
-    } on ApiException {
+    } on ApiException catch (e) {
+      _handleAuthFailure(e);
       _settings = const AgentSettings();
     }
   }
@@ -212,15 +255,23 @@ class AppState extends ChangeNotifier {
         DateTime(now.year, now.month),
         DateTime(now.year, now.month - 1),
       );
-    } on ApiException {
+    } on ApiException catch (e) {
+      _handleAuthFailure(e);
       _metrics = const DashboardMetrics();
     }
   }
 
+  /// Selecionar um dia de outro mês precisa arrastar o calendário junto,
+  /// senão o painel mostra "Amanhã" enquanto o calendário fica no mês velho.
   Future<void> selectDate(DateTime date) async {
     _selectedDate = DateTime(date.year, date.month, date.day);
+    final monthChanged = _visibleMonth.year != date.year ||
+        _visibleMonth.month != date.month;
+    if (monthChanged) _visibleMonth = DateTime(date.year, date.month);
     notifyListeners();
     await _loadDay(_selectedDate);
+    if (monthChanged) await _loadMonth(_visibleMonth);
+    _finishLoadCycle();
     notifyListeners();
   }
 
@@ -228,6 +279,7 @@ class AppState extends ChangeNotifier {
     _visibleMonth = DateTime(month.year, month.month);
     notifyListeners();
     await _loadMonth(_visibleMonth);
+    _finishLoadCycle();
     notifyListeners();
   }
 
@@ -264,7 +316,33 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addBreak(TimeRange range, String label) {
+  /// Devolve o motivo pelo qual a pausa não pode entrar, ou null se estiver
+  /// livre. Checa contra a janela do dia, outras pausas e horários já marcados.
+  String? validateBreak(TimeRange range) {
+    if (!range.isValid) return 'O fim precisa ser depois do início.';
+    if (range.startMinutes < _shift.hours.startMinutes ||
+        range.endMinutes > _shift.hours.endMinutes) {
+      return 'A pausa precisa caber dentro do horário de atendimento.';
+    }
+    for (final b in _shift.breaks) {
+      if (range.startMinutes < b.range.endMinutes &&
+          b.range.startMinutes < range.endMinutes) {
+        return 'Esse intervalo já está ocupado pela pausa "${b.label}".';
+      }
+    }
+    for (final a in bookedAppointments) {
+      final start = a.startAt.hour * 60 + a.startAt.minute;
+      final end = start + a.durationMinutes;
+      if (range.startMinutes < end && start < range.endMinutes) {
+        return '${a.customerName} tem horário marcado nesse intervalo.';
+      }
+    }
+    return null;
+  }
+
+  String? addBreak(TimeRange range, String label) {
+    final problem = validateBreak(range);
+    if (problem != null) return problem;
     final next = List<ShiftBreak>.from(_shift.breaks)
       ..add(ShiftBreak(
         id: 'brk-${DateTime.now().microsecondsSinceEpoch}',
@@ -274,6 +352,7 @@ class AppState extends ChangeNotifier {
       ..sort((a, b) => a.range.startMinutes.compareTo(b.range.startMinutes));
     _shift = _shift.copyWith(breaks: next);
     notifyListeners();
+    return null;
   }
 
   void removeBreak(String id) {
@@ -299,7 +378,7 @@ class AppState extends ChangeNotifier {
     } on ApiException catch (e) {
       _shift = next.copyWith(state: ShiftState.closed);
       notifyListeners();
-      return e.message;
+      return _mutationError(e);
     }
   }
 
@@ -318,7 +397,7 @@ class AppState extends ChangeNotifier {
     } on ApiException catch (e) {
       _shift = previous;
       notifyListeners();
-      return e.message;
+      return _mutationError(e);
     }
   }
 
@@ -333,7 +412,7 @@ class AppState extends ChangeNotifier {
     } on ApiException catch (e) {
       _shift = previous;
       notifyListeners();
-      return e.message;
+      return _mutationError(e);
     }
   }
 
@@ -352,7 +431,7 @@ class AppState extends ChangeNotifier {
     } on ApiException catch (e) {
       _appointments = previous;
       notifyListeners();
-      return e.message;
+      return _mutationError(e);
     }
   }
 
@@ -370,7 +449,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return null;
     } on ApiException catch (e) {
-      return e.message;
+      return _mutationError(e);
     }
   }
 
@@ -384,7 +463,7 @@ class AppState extends ChangeNotifier {
     } on ApiException catch (e) {
       _serviceList = previous;
       notifyListeners();
-      return e.message;
+      return _mutationError(e);
     }
   }
 
@@ -399,7 +478,7 @@ class AppState extends ChangeNotifier {
     } on ApiException catch (e) {
       _settings = previous;
       notifyListeners();
-      return e.message;
+      return _mutationError(e);
     }
   }
 

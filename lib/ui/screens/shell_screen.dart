@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/date_utils.dart';
+import '../../core/formatters.dart';
 import '../../core/responsive.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
@@ -8,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../brand/logo.dart';
 import '../components/buttons.dart';
+import '../components/motion.dart';
 import '../components/primitives.dart';
 import 'agenda_screen.dart';
 import 'configuracoes_screen.dart';
@@ -181,7 +183,10 @@ class _ShellScreenState extends State<ShellScreen> {
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 1200),
-                          child: navDestinations[_index].build(),
+                          child: ScreenTransition(
+                            index: _index,
+                            child: navDestinations[_index].build(),
+                          ),
                         ),
                       ),
                     ),
@@ -211,7 +216,10 @@ class _ShellScreenState extends State<ShellScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                     Space.lg, Space.md, Space.lg, Space.xxxl),
-                child: navDestinations[_index].build(),
+                child: ScreenTransition(
+                  index: _index,
+                  child: navDestinations[_index].build(),
+                ),
               ),
             ),
           ],
@@ -540,8 +548,17 @@ class _TopBar extends StatelessWidget {
             ],
           ),
           const Spacer(),
+          const _SyncLabel(),
+          const SizedBox(width: Space.md),
           const ShiftIndicator(),
           const SizedBox(width: Space.md),
+          AppIconButton(
+            icon: Icons.refresh_rounded,
+            tooltip: 'Atualizar dados',
+            loading: state.isRefreshing,
+            onPressed: state.refresh,
+          ),
+          const SizedBox(width: Space.sm),
           AppIconButton(
             icon: Icons.notifications_none_rounded,
             tooltip: 'Notificações',
@@ -584,6 +601,13 @@ class _CompactTopBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              AppIconButton(
+                icon: Icons.refresh_rounded,
+                size: 34,
+                loading: state.isRefreshing,
+                onPressed: state.refresh,
+              ),
+              const SizedBox(width: Space.sm),
               AppIconButton(
                 icon: state.isDark
                     ? Icons.light_mode_outlined
@@ -752,5 +776,26 @@ class _BottomItem extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _SyncLabel extends StatelessWidget {
+  const _SyncLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final state = AppScope.of(context);
+    final synced = state.lastSyncedAt;
+    if (synced == null) return const SizedBox.shrink();
+
+    final minutes = DateTime.now().difference(synced).inMinutes;
+    final label = minutes < 1
+        ? 'Atualizado agora'
+        : (minutes < 60
+            ? 'Atualizado há ${minutes}min'
+            : 'Atualizado às ${formatTimeOfDay(synced)}');
+
+    return Text(label, style: AppType.caption.copyWith(color: c.t3));
   }
 }

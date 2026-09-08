@@ -719,8 +719,7 @@ class _BreakDialogState extends State<_BreakDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
-    final valid = _end > _start;
+    final problem = AppScope.of(context).validateBreak(TimeRange(_start, _end));
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -762,12 +761,9 @@ class _BreakDialogState extends State<_BreakDialog> {
                   ),
                 ],
               ),
-              if (!valid) ...[
-                const SizedBox(height: Space.md),
-                Text(
-                  'O fim precisa ser depois do início.',
-                  style: AppType.caption.copyWith(color: c.red),
-                ),
+              if (problem != null) ...[
+                const SizedBox(height: Space.lg),
+                InfoBanner(message: problem, tone: BannerTone.warning),
               ],
               const SizedBox(height: Space.xl),
               Row(
@@ -785,8 +781,9 @@ class _BreakDialogState extends State<_BreakDialog> {
                     child: AppButton(
                       label: 'Adicionar pausa',
                       expand: true,
-                      onPressed: valid
-                          ? () {
+                      onPressed: problem != null
+                          ? null
+                          : () {
                               AppScope.read(context).addBreak(
                                 TimeRange(_start, _end),
                                 _label.text.trim().isEmpty
@@ -794,8 +791,7 @@ class _BreakDialogState extends State<_BreakDialog> {
                                     : _label.text.trim(),
                               );
                               Navigator.of(context).pop();
-                            }
-                          : null,
+                            },
                     ),
                   ),
                 ],

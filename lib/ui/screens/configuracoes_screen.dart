@@ -26,8 +26,15 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   @override
   void initState() {
     super.initState();
-    _ownerPhone = TextEditingController();
-    _agentPhone = TextEditingController();
+    // O aviso de "alterações não salvas" lê o texto dos campos direto. Sem
+    // escutar os controllers, digitar um telefone não redesenha a tela e o
+    // aviso só aparecia quando outra coisa mudava.
+    _ownerPhone = TextEditingController()..addListener(_onPhoneEdited);
+    _agentPhone = TextEditingController()..addListener(_onPhoneEdited);
+  }
+
+  void _onPhoneEdited() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -42,8 +49,12 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
 
   @override
   void dispose() {
-    _ownerPhone.dispose();
-    _agentPhone.dispose();
+    _ownerPhone
+      ..removeListener(_onPhoneEdited)
+      ..dispose();
+    _agentPhone
+      ..removeListener(_onPhoneEdited)
+      ..dispose();
     super.dispose();
   }
 

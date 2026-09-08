@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../components/buttons.dart';
 import '../components/charts.dart';
+import '../components/motion.dart';
 import '../components/primitives.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -18,6 +19,35 @@ class DashboardScreen extends StatelessWidget {
     final state = AppScope.of(context);
     final m = state.metrics;
     final now = DateTime.now();
+
+    if (state.isLoading && m.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ResponsiveGrid(
+            minItemWidth: 210,
+            children: List.generate(
+              4,
+              (_) => const AppCard(
+                padding: EdgeInsets.all(Space.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Skeleton(width: 90, height: 10),
+                    SizedBox(height: Space.md),
+                    Skeleton(width: 110, height: 26),
+                    SizedBox(height: Space.sm),
+                    Skeleton(width: 70, height: 10),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: Space.lg),
+          const AppCard(child: Skeleton(height: 190, radius: Radii.md)),
+        ],
+      );
+    }
 
     if (m.isEmpty) {
       return AppCard(
@@ -66,6 +96,8 @@ class DashboardScreen extends StatelessWidget {
             MetricTile(
               label: 'Clientes atendidos',
               value: '${m.customersCount}',
+              count: m.customersCount,
+              format: (v) => '${v.round()}',
               icon: Icons.people_outline_rounded,
               delta: m.customersDelta == 0
                   ? null
@@ -75,6 +107,8 @@ class DashboardScreen extends StatelessWidget {
             MetricTile(
               label: 'Receita do mês',
               value: formatCurrencyCompact(m.revenueCents),
+              count: m.revenueCents,
+              format: (v) => formatCurrencyCompact(v.round()),
               icon: Icons.payments_outlined,
               delta: m.revenueDeltaPercent == 0
                   ? null
@@ -84,11 +118,15 @@ class DashboardScreen extends StatelessWidget {
             MetricTile(
               label: 'Ticket médio',
               value: formatCurrency(m.averageTicketCents),
+              count: m.averageTicketCents,
+              format: (v) => formatCurrency(v.round()),
               icon: Icons.receipt_long_outlined,
             ),
             MetricTile(
               label: 'Faltas e cancelamentos',
               value: '${m.noShowCount + m.cancellationsCount}',
+              count: m.noShowCount + m.cancellationsCount,
+              format: (v) => '${v.round()}',
               icon: Icons.event_busy_outlined,
               delta: '${m.noShowCount} faltas · ${m.cancellationsCount} cancel.',
               deltaPositive: false,

@@ -8,6 +8,7 @@ import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../components/buttons.dart';
+import '../components/motion.dart';
 import '../components/primitives.dart';
 
 enum AgendaFilter { todos, novos, confirmados, atendidos }
@@ -302,7 +303,9 @@ class _DayListCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: Space.lg),
-          if (appointments.isEmpty)
+          if (state.isLoading && appointments.isEmpty)
+            const SkeletonList()
+          else if (appointments.isEmpty)
             EmptyState(
               icon: Icons.event_busy_outlined,
               title: 'Nada por aqui',
@@ -311,10 +314,15 @@ class _DayListCard extends StatelessWidget {
                   : 'Nenhum agendamento com esse filtro neste dia.',
             )
           else
-            ...appointments.map((a) => Padding(
-                  padding: const EdgeInsets.only(bottom: Space.sm),
-                  child: AppointmentRow(appointment: a),
-                )),
+            ...appointments.asMap().entries.map(
+                  (entry) => StaggeredEntrance(
+                    position: entry.key,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: Space.sm),
+                      child: AppointmentRow(appointment: entry.value),
+                    ),
+                  ),
+                ),
         ],
       ),
     );

@@ -27,14 +27,19 @@ class _EncerrarScreenState extends State<EncerrarScreen> {
   bool _busy = false;
   bool _initialized = false;
 
+  bool _touched = false;
+
+  /// Amanhã herda o horário de hoje até você mexer. Antes isso era capturado
+  /// uma única vez, então mudar a janela no Expediente não refletia aqui.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_initialized) return;
     final shift = AppScope.of(context).shift;
-    _tomorrowHours = shift.hours;
-    _tomorrowSlot = shift.slotMinutes;
-    _initialized = true;
+    if (!_initialized || !_touched) {
+      _tomorrowHours = shift.hours;
+      _tomorrowSlot = shift.slotMinutes;
+      _initialized = true;
+    }
   }
 
   Future<void> _finish() async {
@@ -93,9 +98,18 @@ class _EncerrarScreenState extends State<EncerrarScreen> {
           hours: _tomorrowHours,
           slot: _tomorrowSlot,
           dayOff: _tomorrowOff,
-          onHours: (v) => setState(() => _tomorrowHours = v),
-          onSlot: (v) => setState(() => _tomorrowSlot = v),
-          onDayOff: (v) => setState(() => _tomorrowOff = v),
+          onHours: (v) => setState(() {
+            _tomorrowHours = v;
+            _touched = true;
+          }),
+          onSlot: (v) => setState(() {
+            _tomorrowSlot = v;
+            _touched = true;
+          }),
+          onDayOff: (v) => setState(() {
+            _tomorrowOff = v;
+            _touched = true;
+          }),
         ),
         const SizedBox(height: Space.lg),
         _CloseCard(

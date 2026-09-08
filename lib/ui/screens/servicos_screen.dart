@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../components/buttons.dart';
 import '../components/inputs.dart';
+import '../components/motion.dart';
 import '../components/primitives.dart';
 
 class ServicosScreen extends StatefulWidget {
@@ -203,7 +204,9 @@ class _ServicosScreenState extends State<ServicosScreen> {
                 ],
               ),
               const SizedBox(height: Space.lg),
-              if (state.serviceList.isEmpty)
+              if (state.isLoading && state.serviceList.isEmpty)
+                const SkeletonList(count: 3)
+              else if (state.serviceList.isEmpty)
                 EmptyState(
                   icon: Icons.content_cut_outlined,
                   title: 'Nenhum serviço cadastrado',
@@ -222,14 +225,19 @@ class _ServicosScreenState extends State<ServicosScreen> {
                   message: 'Nenhum serviço corresponde a esse filtro.',
                 )
               else
-                ...services.map((service) => Padding(
-                      padding: const EdgeInsets.only(bottom: Space.sm),
-                      child: _ServiceRow(
-                        service: service,
-                        onEdit: () => _edit(service),
-                        onDelete: () => _confirmDelete(service),
+                ...services.asMap().entries.map(
+                      (entry) => StaggeredEntrance(
+                        position: entry.key,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: Space.sm),
+                          child: _ServiceRow(
+                            service: entry.value,
+                            onEdit: () => _edit(entry.value),
+                            onDelete: () => _confirmDelete(entry.value),
+                          ),
+                        ),
                       ),
-                    )),
+                    ),
             ],
           ),
         ),

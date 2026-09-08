@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/formatters.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import 'motion.dart';
 
 class AppCard extends StatelessWidget {
   final Widget child;
@@ -447,6 +448,11 @@ class MetricTile extends StatelessWidget {
   final bool? deltaPositive;
   final IconData icon;
 
+  /// Quando [count] e [format] são passados, o número sobe até o valor final
+  /// em vez de aparecer pronto. Sem eles, [value] é exibido direto.
+  final num? count;
+  final String Function(num)? format;
+
   const MetricTile({
     super.key,
     required this.label,
@@ -454,6 +460,8 @@ class MetricTile extends StatelessWidget {
     required this.icon,
     this.delta,
     this.deltaPositive,
+    this.count,
+    this.format,
   });
 
   @override
@@ -481,7 +489,14 @@ class MetricTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Space.md),
-          Text(value, style: AppType.numeric.copyWith(color: c.t1)),
+          if (count != null && format != null)
+            CountUp(
+              value: count!,
+              format: format!,
+              style: AppType.numeric.copyWith(color: c.t1),
+            )
+          else
+            Text(value, style: AppType.numeric.copyWith(color: c.t1)),
           if (delta != null) ...[
             const SizedBox(height: 6),
             Row(

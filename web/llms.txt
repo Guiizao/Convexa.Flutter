@@ -1,0 +1,9 @@
+# Convexa — Painel Administrativo
+
+Este site é o painel administrativo privado do Convexa (sistema de
+agendamento com atendente de IA via WhatsApp). O acesso exige login
+e não é destinado a indexação por buscadores ou uso por clientes
+finais — clientes interagem apenas pelo WhatsApp.
+
+Para informações públicas sobre o produto Convexa, consulte o site
+institucional (convexa.site), não este painel.

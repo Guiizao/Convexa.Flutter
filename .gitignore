@@ -1,0 +1,13 @@
+.dart_tool/
+.idea/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+*.iml
+
+# ferramentas locais (nao vao para o repo compartilhado)
+.claude/
+.vexp/
+.vscode/

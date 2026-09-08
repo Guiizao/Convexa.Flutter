@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Convexa: painel de agendamento com atendente de IA no WhatsApp para barbearias, pet shops e salões. Marque, confirme e lembre clientes automaticamente.">
+  <meta name="keywords" content="agendamento via whatsapp, agente de ia para barbearia, sistema de agendamento, marcação de horário automática, pet shop, tosa, painel administrativo">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#00D4A8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Convexa">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="manifest" href="manifest.json">
+  <title>Convexa — Painel Administrativo</title>
+  <style>
+    body { margin: 0; background-color: #06091A; }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; flex-direction: column; gap: 18px;
+      font-family: system-ui, sans-serif; color: #5A6A95;
+    }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid #142042;
+      border-top-color: #00D4A8; border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Carregando Convexa...</div>
+  </div>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

@@ -143,24 +143,32 @@ class ScheduleRepository {
   }
 
   /// Mudança de status. O backend expõe uma ação por rota, em vez de um PATCH
-  /// genérico com `status` no corpo — assim cada transição tem sua regra.
+  /// genérico com `status` no corpo — assim cada transição tem sua regra
+  /// (cancelar libera o horário; concluir conta na receita).
   ///
   /// API: POST /api/appointments/:id/confirm
   /// API: POST /api/appointments/:id/complete
   /// API: POST /api/appointments/:id/cancel
-  /// API: POST /api/appointments/:id/no-show
+  ///
+  /// NO_SHOW ainda não existe no enum do backend (só SCHEDULED, CONFIRMED,
+  /// COMPLETED e CANCELLED). Enquanto não entrar, marcar falta fora do modo
+  /// demonstração é recusado aqui em vez de bater numa rota inexistente.
   Future<void> setStatus(String id, AppointmentStatus status) async {
     if (ctx.demoMode) return;
     final action = switch (status) {
       AppointmentStatus.confirmed => 'confirm',
       AppointmentStatus.completed => 'complete',
       AppointmentStatus.cancelled => 'cancel',
-      AppointmentStatus.noShow => 'no-show',
+      AppointmentStatus.noShow => null,
       AppointmentStatus.scheduled => null,
     };
     if (action == null) {
-      throw const ApiException(
-          400, 'Não há ação para voltar um horário a "aguardando".');
+      throw ApiException(
+        501,
+        status == AppointmentStatus.noShow
+            ? 'Registrar falta ainda não existe na API. Use "Cancelar horário" por enquanto.'
+            : 'Não há ação para voltar um horário a "aguardando".',
+      );
     }
     await ctx.api.post('/api/appointments/$id/$action');
   }

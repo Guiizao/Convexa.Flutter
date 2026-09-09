@@ -113,12 +113,39 @@ class ApiClient {
     }
 
     final map = decoded is Map<String, dynamic> ? decoded : const {};
+    final code = map['code']?.toString();
     throw ApiException(
       response.statusCode,
-      (map['message'] ?? _defaultMessage(response.statusCode)).toString(),
-      code: map['code']?.toString(),
+      _messageFor(code) ??
+          (map['message'] ?? _defaultMessage(response.statusCode)).toString(),
+      code: code,
     );
   }
+
+  /// A API garante que `code` é estável entre versões, enquanto `message` é
+  /// texto para humano e pode mudar. Então a decisão é sempre pelo código —
+  /// o texto abaixo é nosso, escrito para quem opera o painel.
+  static String? _messageFor(String? code) => switch (code) {
+        'PAST' => 'Esse horário já passou.',
+        'CLOSED_DAY' => 'O estabelecimento não atende nesta data.',
+        'BUSINESS_VACATION' => 'O estabelecimento está de férias nesta data.',
+        'EMPLOYEE_VACATION' => 'O profissional está de férias nesta data.',
+        'OUTSIDE_BUSINESS_HOURS' =>
+          'Fora do horário de funcionamento configurado.',
+        'OUTSIDE_EMPLOYEE_HOURS' => 'Fora da jornada desse profissional.',
+        'TIME_BLOCK' => 'Existe um bloqueio na agenda nesse horário.',
+        'APPOINTMENT_CONFLICT' => 'Já existe um agendamento nesse horário.',
+        'SLOT_CONFLICT' =>
+          'Esse horário acabou de ser ocupado. Escolha outro.',
+        'UNIQUE_VIOLATION' => 'Já existe um registro com esse dado.',
+        'FOREIGN_KEY_VIOLATION' =>
+          'Não dá para excluir: existem registros ligados a este.',
+        'NOT_FOUND' => 'Registro não encontrado.',
+        'INVALID_ID' => 'Identificador inválido.',
+        'INTERNAL_ERROR' =>
+          'Erro inesperado no servidor. Avise o time do backend.',
+        _ => null,
+      };
 
   String _defaultMessage(int status) => switch (status) {
         400 => 'Dados inválidos.',

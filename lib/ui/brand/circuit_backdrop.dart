@@ -3,14 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
-import 'logo.dart';
 
-/// Fundo animado do login: trilhas ortogonais estilo placa de circuito com um
-/// risco de luz correndo por algumas delas. Mesma linguagem visual do site de
-/// apresentação, para painel e site não parecerem produtos diferentes.
+/// Fundo animado do login: trilhas estilo placa de circuito, com percursos em
+/// 45 graus, feixes paralelos e ilhas nas pontas — como numa PCB de verdade.
+/// Alguns caminhos recebem um risco de luz que corre até o destino.
 ///
 /// A luz é extraída do próprio caminho com PathMetric, então ela acompanha as
-/// curvas em vez de ser uma bolinha desenhada por cima.
+/// diagonais em vez de ser uma bolinha desenhada por cima.
 class CircuitBackdrop extends StatefulWidget {
   /// Reduz densidade e brilho quando o fundo fica atrás do formulário inteiro,
   /// como acontece no celular.
@@ -31,7 +30,7 @@ class _CircuitBackdropState extends State<CircuitBackdrop>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 24),
+      duration: const Duration(seconds: 30),
     );
   }
 
@@ -56,11 +55,7 @@ class _CircuitBackdropState extends State<CircuitBackdrop>
   @override
   Widget build(BuildContext context) {
     final dark = context.isDarkMode;
-
-    // Verde vivo brilha no escuro; no claro ele some no fundo quase branco, e
-    // um verde escuro funciona como sombra.
-    final accent = dark ? brandGreen : const Color(0xFF0E6B34);
-    final base = widget.subdued ? 0.55 : 1.0;
+    final base = widget.subdued ? 0.6 : 1.0;
 
     return IgnorePointer(
       child: RepaintBoundary(
@@ -70,14 +65,8 @@ class _CircuitBackdropState extends State<CircuitBackdrop>
             size: Size.infinite,
             painter: _CircuitPainter(
               t: _controller.value,
-              accent: accent,
-              trace: dark
-                  ? accent.withValues(alpha: 0.085 * base)
-                  : accent.withValues(alpha: 0.16 * base),
-              node: dark
-                  ? accent.withValues(alpha: 0.22 * base)
-                  : accent.withValues(alpha: 0.3 * base),
-              glowStrength: (dark ? 1.0 : 0.75) * base,
+              dark: dark,
+              strength: base,
               dense: !widget.subdued,
             ),
           ),
@@ -92,111 +81,239 @@ class _Trace {
   final double length;
   final double phase;
   final double speed;
+  final int tone;
 
-  _Trace(this.path, this.length, this.phase, this.speed);
+  _Trace(this.path, this.length, this.phase, this.speed, this.tone);
+}
+
+class _Pad {
+  final Offset at;
+  final double radius;
+  final bool hollow;
+
+  _Pad(this.at, this.radius, this.hollow);
 }
 
 class _CircuitPainter extends CustomPainter {
   final double t;
-  final Color accent;
-  final Color trace;
-  final Color node;
-  final double glowStrength;
+  final bool dark;
+  final double strength;
   final bool dense;
 
   _CircuitPainter({
     required this.t,
-    required this.accent,
-    required this.trace,
-    required this.node,
-    required this.glowStrength,
+    required this.dark,
+    required this.strength,
     required this.dense,
   });
 
-  static const _streak = 58.0;
-  static const _rest = 220.0;
+  // Três verdes: o vivo da marca, um intermediário e um profundo. Misturá-los
+  // evita a leitura de "tudo desenhado com a mesma caneta".
+  static const _greensDark = [
+    Color(0xFF2BD96B),
+    Color(0xFF17A854),
+    Color(0xFF0E7A3C),
+  ];
+  static const _greensLight = [
+    Color(0xFF0E6B34),
+    Color(0xFF14874A),
+    Color(0xFF1FA65C),
+  ];
+
+  static const _streak = 74.0;
+  static const _rest = 190.0;
+
+  List<Color> get _palette => dark ? _greensDark : _greensLight;
 
   Size? _builtFor;
   List<_Trace> _traces = const [];
-  List<Offset> _nodes = const [];
+  List<_Pad> _pads = const [];
   List<_Trace> _lit = const [];
+
+  static int _sign(double v) => v < 0 ? -1 : 1;
+
+  /// Roteia como uma PCB: um trecho reto, uma diagonal de 45 graus, outro
+  /// trecho reto. É isso que dá a leitura de placa em vez de grade.
+  static Path _route(Offset from, Offset to, bool horizontalFirst) {
+    final dx = to.dx - from.dx;
+    final dy = to.dy - from.dy;
+    final diag = math.min(dx.abs(), dy.abs());
+    final path = Path()..moveTo(from.dx, from.dy);
+
+    if (horizontalFirst) {
+      final turn = from.dx + _sign(dx) * (dx.abs() - diag);
+      path.lineTo(turn, from.dy);
+      path.lineTo(turn + _sign(dx) * diag, from.dy + _sign(dy) * diag);
+    } else {
+      final turn = from.dy + _sign(dy) * (dy.abs() - diag);
+      path.lineTo(from.dx, turn);
+      path.lineTo(from.dx + _sign(dx) * diag, turn + _sign(dy) * diag);
+    }
+    path.lineTo(to.dx, to.dy);
+    return path;
+  }
+
+  static double _lengthOf(Path path) {
+    var total = 0.0;
+    for (final m in path.computeMetrics()) {
+      total += m.length;
+    }
+    return total;
+  }
 
   void _build(Size size) {
     if (_builtFor == size) return;
     _builtFor = size;
 
-    final rand = math.Random(7);
-    final spacing = size.width < 620 ? 96.0 : 132.0;
+    final rand = math.Random(11);
+    final compact = size.width < 620;
+    final spacing = compact ? 74.0 : 96.0;
     final cols = (size.width / spacing).ceil() + 2;
     final rows = (size.height / spacing).ceil() + 2;
 
+    Offset nodeAt(int r, int col) {
+      final jitter = spacing * 0.18;
+      return Offset(
+        col * spacing + (rand.nextDouble() - 0.5) * jitter,
+        r * spacing + (rand.nextDouble() - 0.5) * jitter,
+      );
+    }
+
     final grid = List.generate(
       rows,
-      (r) => List.generate(cols, (col) {
-        final jitter = spacing * 0.24;
-        return Offset(
-          col * spacing + (rand.nextDouble() - 0.5) * jitter,
-          r * spacing + (rand.nextDouble() - 0.5) * jitter,
-        );
-      }),
+      (r) => List.generate(cols, (col) => nodeAt(r, col)),
     );
 
-    _nodes = [for (final row in grid) ...row];
+    final traces = <_Trace>[];
+    final pads = <_Pad>[];
 
-    final built = <_Trace>[];
-    for (var r = 0; r < rows; r++) {
-      for (var col = 0; col < cols; col++) {
-        final p = grid[r][col];
-        final targets = <Offset>[];
-        if (col < cols - 1 && rand.nextDouble() > 0.34) targets.add(grid[r][col + 1]);
-        if (r < rows - 1 && rand.nextDouble() > 0.52) targets.add(grid[r + 1][col]);
+    void addTrace(Offset a, Offset b, {bool bus = false}) {
+      final horizontalFirst = rand.nextBool();
+      final path = _route(a, b, horizontalFirst);
+      final length = _lengthOf(path);
+      if (length < 8) return;
+      traces.add(_Trace(
+        path,
+        length,
+        rand.nextDouble(),
+        0.05 + rand.nextDouble() * 0.07,
+        rand.nextInt(_palette.length),
+      ));
 
-        for (final n in targets) {
-          final bend =
-              rand.nextBool() ? Offset(n.dx, p.dy) : Offset(p.dx, n.dy);
-          final path = Path()
-            ..moveTo(p.dx, p.dy)
-            ..lineTo(bend.dx, bend.dy)
-            ..lineTo(n.dx, n.dy);
-          final length = (bend - p).distance + (n - bend).distance;
-          if (length < 2) continue;
-          built.add(_Trace(
-            path,
-            length,
+      // Feixe: duas ou três trilhas correndo juntas, como um barramento.
+      if (bus) {
+        final offsets = rand.nextBool() ? [5.0, 10.0] : [6.0];
+        for (final off in offsets) {
+          final shifted = _route(
+            a.translate(0, off),
+            b.translate(0, off),
+            horizontalFirst,
+          );
+          traces.add(_Trace(
+            shifted,
+            _lengthOf(shifted),
             rand.nextDouble(),
-            0.055 + rand.nextDouble() * 0.06,
+            0.05 + rand.nextDouble() * 0.07,
+            rand.nextInt(_palette.length),
           ));
         }
       }
     }
 
-    _traces = built;
+    for (var r = 0; r < rows; r++) {
+      for (var col = 0; col < cols; col++) {
+        final p = grid[r][col];
 
-    // Sorteia as trilhas acesas por toda a tela, em vez de pegar as primeiras
-    // da lista — que ficariam todas no canto superior esquerdo.
-    final indices = List.generate(built.length, (i) => i)..shuffle(rand);
-    final howMany = math.min(built.length, dense ? 18 : 9);
-    _lit = [for (final i in indices.take(howMany)) built[i]];
+        if (col < cols - 1 && rand.nextDouble() > 0.42) {
+          addTrace(p, grid[r][col + 1], bus: rand.nextDouble() > 0.72);
+        }
+        if (r < rows - 1 && rand.nextDouble() > 0.58) {
+          addTrace(p, grid[r + 1][col]);
+        }
+        // Diagonal longa ocasional, que é o que dá o desenho de placa.
+        if (r < rows - 1 && col < cols - 1 && rand.nextDouble() > 0.82) {
+          addTrace(p, grid[r + 1][col + 1]);
+        }
+
+        // Ilhas: nem todo nó vira pad, e alguns são vias vazadas.
+        if (rand.nextDouble() > 0.45) {
+          pads.add(_Pad(
+            p,
+            rand.nextDouble() > 0.72 ? 3.2 : 2.0,
+            rand.nextDouble() > 0.55,
+          ));
+        }
+
+        // Stub curto terminando em ilha, muito comum numa PCB real.
+        if (rand.nextDouble() > 0.8) {
+          final len = spacing * (0.28 + rand.nextDouble() * 0.22);
+          final dir = rand.nextInt(4);
+          final end = switch (dir) {
+            0 => p.translate(len, 0),
+            1 => p.translate(-len, 0),
+            2 => p.translate(0, len),
+            _ => p.translate(0, -len),
+          };
+          final stub = Path()
+            ..moveTo(p.dx, p.dy)
+            ..lineTo(end.dx, end.dy);
+          traces.add(_Trace(stub, len, rand.nextDouble(), 0.06,
+              rand.nextInt(_palette.length)));
+          pads.add(_Pad(end, 2.4, rand.nextDouble() > 0.5));
+        }
+      }
+    }
+
+    _traces = traces;
+    _pads = pads;
+
+    // Sorteia as trilhas acesas por toda a tela — pegar as primeiras da lista
+    // deixaria a animação amontoada no canto superior esquerdo. Mais acesas do
+    // que antes: com poucas, a tela parecia parada.
+    final long = [
+      for (var i = 0; i < traces.length; i++)
+        if (traces[i].length > spacing * 0.6) i
+    ]..shuffle(rand);
+    final howMany = math.min(long.length, dense ? 34 : 18);
+    _lit = [for (final i in long.take(howMany)) traces[i]];
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     _build(size);
 
+    final traceAlpha = dark ? 0.10 : 0.22;
+    final padAlpha = dark ? 0.24 : 0.34;
+
     final tracePaint = Paint()
-      ..color = trace
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+      ..strokeWidth = 1.1
+      ..strokeJoin = StrokeJoin.round;
+
     for (final tr in _traces) {
+      tracePaint.color = _palette[tr.tone]
+          .withValues(alpha: (traceAlpha * strength).clamp(0.0, 1.0).toDouble());
       canvas.drawPath(tr.path, tracePaint);
     }
 
-    final nodePaint = Paint()..color = node;
-    for (final n in _nodes) {
-      canvas.drawCircle(n, 1.5, nodePaint);
+    for (final pad in _pads) {
+      final color = _palette[1]
+          .withValues(alpha: (padAlpha * strength).clamp(0.0, 1.0).toDouble());
+      if (pad.hollow) {
+        canvas.drawCircle(
+          pad.at,
+          pad.radius,
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1,
+        );
+      } else {
+        canvas.drawCircle(pad.at, pad.radius, Paint()..color = color);
+      }
     }
 
-    final elapsed = t * 24000;
+    final elapsed = t * 30000;
 
     for (final tr in _lit) {
       final cycle = tr.length + _streak + _rest;
@@ -209,38 +326,50 @@ class _CircuitPainter extends CustomPainter {
       final to = head.clamp(0.0, tr.length);
       if (to - from < 0.5) continue;
 
+      // No claro a luz precisa de um verde mais forte para não sumir no fundo
+      // quase branco; no escuro o verde vivo já brilha sozinho.
+      final glow = dark ? _greensDark[0] : _greensLight[2];
+      final core = dark ? const Color(0xFFB9FFD6) : _greensLight[0];
+
       for (final metric in tr.path.computeMetrics()) {
         if (from > metric.length) continue;
-        final segment = metric.extractPath(from, math.min(to, metric.length));
+        final end = math.min(to, metric.length);
+        final segment = metric.extractPath(from, end);
 
         canvas.drawPath(
           segment,
           Paint()
-            ..color = accent.withValues(
-                alpha: (0.34 * glowStrength).clamp(0.0, 1.0).toDouble())
+            ..color = glow.withValues(
+                alpha: ((dark ? 0.30 : 0.42) * strength)
+                    .clamp(0.0, 1.0)
+                    .toDouble())
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.4
+            ..strokeWidth = 4.2
             ..strokeCap = StrokeCap.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+            ..strokeJoin = StrokeJoin.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
         canvas.drawPath(
           segment,
           Paint()
-            ..color = accent.withValues(
-                alpha: (0.95 * glowStrength).clamp(0.0, 1.0).toDouble())
+            ..color = core.withValues(
+                alpha: ((dark ? 0.95 : 1.0) * strength)
+                    .clamp(0.0, 1.0)
+                    .toDouble())
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..strokeCap = StrokeCap.round,
+            ..strokeWidth = 1.5
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round,
         );
 
-        final tip = metric.getTangentForOffset(math.min(to, metric.length));
+        final tip = metric.getTangentForOffset(end);
         if (tip != null) {
           canvas.drawCircle(
             tip.position,
-            2.4,
+            2.8,
             Paint()
-              ..color = accent.withValues(
-                  alpha: (0.9 * glowStrength).clamp(0.0, 1.0).toDouble())
+              ..color = core.withValues(
+                  alpha: (0.9 * strength).clamp(0.0, 1.0).toDouble())
               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
           );
         }
@@ -251,7 +380,7 @@ class _CircuitPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CircuitPainter old) =>
-      old.t != t || old.accent != accent || old.glowStrength != glowStrength;
+      old.t != t || old.dark != dark || old.strength != strength;
 }
 
 /// Véu suave sobre as trilhas, para o texto do formulário não competir com o
@@ -276,8 +405,8 @@ class BackdropScrim extends StatelessWidget {
             begin: begin,
             end: end,
             colors: [
-              c.bg.withValues(alpha: 0.9),
-              c.bg.withValues(alpha: 0.15),
+              c.bg.withValues(alpha: 0.86),
+              c.bg.withValues(alpha: 0.10),
             ],
           ),
         ),

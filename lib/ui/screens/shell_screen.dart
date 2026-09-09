@@ -256,7 +256,7 @@ class _SideRail extends StatelessWidget {
     final state = AppScope.of(context);
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: context.reactDuration,
       curve: Curves.easeOut,
       width: expanded ? 232 : 72,
       decoration: BoxDecoration(
@@ -388,7 +388,7 @@ class _RailItemState extends State<_RailItem> {
     final active = widget.active;
 
     final content = AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
+      duration: context.reactDuration,
       height: 42,
       margin: const EdgeInsets.only(bottom: 3),
       padding: EdgeInsets.symmetric(
@@ -775,7 +775,7 @@ class _BottomItem extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
+            duration: context.reactDuration,
             width: 30,
             height: 3,
             margin: const EdgeInsets.only(bottom: 7),

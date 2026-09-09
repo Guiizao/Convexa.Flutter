@@ -132,6 +132,13 @@ class AppColors {
   );
 }
 
+/// Duração única de reação a interação — hover, foco, seleção.
+///
+/// Cada componente tinha a sua (140, 150, 160, 170, 180, 200ms). Como todos
+/// perseguem a cor que o [AnimatedColors] interpola, cada um chegava ao valor
+/// novo num instante diferente e a troca de tema parecia escalonada.
+const Duration kReact = Duration(milliseconds: 140);
+
 class Space {
   static const double xs = 4;
   static const double sm = 8;

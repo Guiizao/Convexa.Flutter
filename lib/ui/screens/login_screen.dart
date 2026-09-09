@@ -243,7 +243,7 @@ class _Checkbox extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 140),
+              duration: context.reactDuration,
               width: 17,
               height: 17,
               decoration: BoxDecoration(

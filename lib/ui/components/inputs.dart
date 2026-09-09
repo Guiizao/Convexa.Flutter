@@ -123,7 +123,7 @@ class SegmentedControl<T> extends StatelessWidget {
       children: options.map((option) {
         final active = option.value == selected;
         final content = AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+          duration: context.reactDuration,
           padding: const EdgeInsets.symmetric(
               horizontal: Space.md, vertical: 8),
           decoration: BoxDecoration(

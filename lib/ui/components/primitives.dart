@@ -233,7 +233,7 @@ class AppSwitch extends StatelessWidget {
       child: GestureDetector(
         onTap: enabled ? () => onChanged!(!value) : null,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 170),
+          duration: context.reactDuration,
           curve: Curves.easeOut,
           width: 42,
           height: 24,
@@ -244,7 +244,7 @@ class AppSwitch extends StatelessWidget {
             border: Border.all(color: value ? c.primary : c.borderStrong),
           ),
           child: AnimatedAlign(
-            duration: const Duration(milliseconds: 170),
+            duration: context.reactDuration,
             curve: Curves.easeOut,
             alignment: value ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(

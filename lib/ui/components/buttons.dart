@@ -103,10 +103,10 @@ class _AppButtonState extends State<AppButton> {
       child: GestureDetector(
         onTap: enabled ? widget.onPressed : null,
         child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 140),
+          duration: context.reactDuration,
           opacity: enabled ? 1 : 0.45,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
+            duration: context.reactDuration,
             height: height,
             width: widget.expand ? double.infinity : null,
             padding: EdgeInsets.symmetric(horizontal: hPad),
@@ -163,7 +163,7 @@ class _AppIconButtonState extends State<AppIconButton> {
       child: GestureDetector(
         onTap: widget.onPressed,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
+          duration: context.reactDuration,
           width: widget.size,
           height: widget.size,
           decoration: BoxDecoration(

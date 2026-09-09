@@ -43,7 +43,11 @@ class _ConvexaAppState extends State<ConvexaApp> {
           builder: (context, colors) => MaterialApp(
             title: 'Convexa · Painel',
             debugShowCheckedModeBanner: false,
-            theme: buildAppTheme(widget.state.isDark, widget.state.palette),
+            // Zero: quem conduz a transição é o AnimatedColors. Sem isso o
+            // MaterialApp animava o ThemeData por conta própria, com outra
+            // duração e outra curva, e os dois ficavam fora de sincronia.
+            themeAnimationDuration: Duration.zero,
+            theme: buildAppTheme(widget.state.isDark, colors),
             home: widget.state.isRestoringSession
                 ? const _BootSplash()
                 : widget.state.isSignedIn

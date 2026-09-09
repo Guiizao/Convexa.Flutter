@@ -2,29 +2,47 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../state/app_state.dart';
-import 'palettes.dart';
 import 'tokens.dart';
 
 extension ThemeContext on BuildContext {
   /// Lê as cores já interpoladas pelo [ColorScope]. Sem ele — em testes, por
   /// exemplo — cai direto no valor final do estado.
   AppColors get colors =>
-      ColorScope.maybeOf(this) ?? AppScope.of(this).colors;
+      ColorScope.maybeOf(this)?.colors ?? AppScope.of(this).colors;
   bool get isDarkMode => AppScope.of(this).isDark;
+
+  /// Duração das animações de interação (hover, foco, seleção).
+  ///
+  /// Durante a troca de tema devolve zero: quem conduz a transição é o
+  /// [AnimatedColors], e uma animação local por cima faria o componente
+  /// perseguir uma cor que já está mudando — é o que deixava alguns ícones e
+  /// fundos atrasados. Terminada a troca, o hover volta a animar normalmente.
+  Duration get reactDuration =>
+      (ColorScope.maybeOf(this)?.transitioning ?? false)
+          ? Duration.zero
+          : kReact;
 }
 
 /// Distribui as cores animadas para toda a árvore.
 class ColorScope extends InheritedWidget {
   final AppColors colors;
 
-  const ColorScope({super.key, required this.colors, required super.child});
+  /// True enquanto o tema está cruzando de um valor para outro.
+  final bool transitioning;
 
-  static AppColors? maybeOf(BuildContext context) => context
-      .dependOnInheritedWidgetOfExactType<ColorScope>()
-      ?.colors;
+  const ColorScope({
+    super.key,
+    required this.colors,
+    required this.transitioning,
+    required super.child,
+  });
+
+  static ColorScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ColorScope>();
 
   @override
-  bool updateShouldNotify(ColorScope old) => old.colors != colors;
+  bool updateShouldNotify(ColorScope old) =>
+      old.colors != colors || old.transitioning != transitioning;
 }
 
 /// Cruza de um tema para o outro token a token, em vez de trocar tudo num
@@ -90,6 +108,7 @@ class _AnimatedColorsState extends State<AnimatedColors>
         final colors = AppColors.lerp(_from, _to, eased);
         return ColorScope(
           colors: colors,
+          transitioning: _controller.isAnimating,
           child: widget.builder(context, colors),
         );
       },
@@ -97,8 +116,11 @@ class _AnimatedColorsState extends State<AnimatedColors>
   }
 }
 
-ThemeData buildAppTheme(bool isDark, [AppPalette palette = AppPalette.convexa]) {
-  final c = palette.colors(isDark);
+/// Recebe as cores já interpoladas pelo [AnimatedColors]. Antes ela derivava
+/// da paleta final, então o ThemeData — que pinta ícone e texto padrão —
+/// saltava para a cor nova enquanto os tokens ainda estavam a meio caminho.
+/// Era isso que fazia alguns ícones "atrasarem" na troca de tema.
+ThemeData buildAppTheme(bool isDark, AppColors c) {
   final base = isDark ? ThemeData.dark() : ThemeData.light();
 
   final textTheme = GoogleFonts.interTextTheme(base.textTheme).apply(

@@ -586,7 +586,7 @@ class _PaletteTile extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: context.reactDuration,
           padding: const EdgeInsets.all(Space.md),
           decoration: BoxDecoration(
             color: selected ? c.primaryWash : c.surf,

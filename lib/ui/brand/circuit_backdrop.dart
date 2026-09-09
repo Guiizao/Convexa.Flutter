@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -124,7 +125,6 @@ class _CircuitPainter extends CustomPainter {
 
   static const _streak = 150.0;
   static const _rest = 180.0;
-  static const _slices = 18;
 
   /// Passo do corredor. Tudo se alinha a este passo — é o alinhamento que
   /// separa "placa de circuito" de "rabisco".
@@ -326,66 +326,101 @@ class _CircuitPainter extends CustomPainter {
           : (1.0 - overrun / _streak).clamp(0.0, 1.0).toDouble();
       if (fade <= 0.01) continue;
 
+      // Cometa em UM traço só, com gradiente ao longo do caminho.
+      //
+      // Antes a cauda saía em 18 fatias separadas. Onde uma encostava na
+      // outra o alpha se somava e aparecia um ponto mais claro — de perto o
+      // rastro lia como uma fileira de bolinhas, não como um cometa. Um
+      // traço único com gradiente não tem emenda nenhuma.
       for (final metric in tr.path.computeMetrics()) {
         if (from > metric.length) continue;
         final end = math.min(to, metric.length);
         if (end - from < 1) break;
 
-        for (var s = 0; s < _slices; s++) {
-          final f1 = (s + 1) / _slices;
-          final d0 = from + (end - from) * (s / _slices);
-          final d1 = from + (end - from) * f1;
-          if (d1 - d0 < 0.4) continue;
+        final segment = metric.extractPath(from, end);
+        final tail = metric.getTangentForOffset(from)?.position;
+        final headPos = metric.getTangentForOffset(end)?.position;
+        if (tail == null || headPos == null) break;
 
-          final k = f1 * f1;
-          final segment = metric.extractPath(d0, d1);
+        double a(double v) => (v * fade * strength).clamp(0.0, 1.0).toDouble();
 
-          canvas.drawPath(
-            segment,
-            Paint()
-              ..color = glow.withValues(
-                  alpha: ((dark ? 0.34 : 0.46) * k * fade * strength)
-                      .clamp(0.0, 1.0)
-                      .toDouble())
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.6 + 4.6 * k
-              ..strokeCap = StrokeCap.round
-              ..strokeJoin = StrokeJoin.round
-              ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3 + 7 * k),
-          );
-          canvas.drawPath(
-            segment,
-            Paint()
-              ..color = core.withValues(
-                  alpha: ((dark ? 0.95 : 1.0) * k * fade * strength)
-                      .clamp(0.0, 1.0)
-                      .toDouble())
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.5 + 1.5 * k
-              ..strokeCap = StrokeCap.round
-              ..strokeJoin = StrokeJoin.round,
-          );
-        }
+        // As paradas concentram o brilho na frente, em vez de espalhar pelo
+        // rastro inteiro.
+        Shader shade(Color color, double peak) => ui.Gradient.linear(
+              tail,
+              headPos,
+              [
+                color.withValues(alpha: 0),
+                color.withValues(alpha: a(peak * 0.14)),
+                color.withValues(alpha: a(peak * 0.45)),
+                color.withValues(alpha: a(peak)),
+              ],
+              const [0.0, 0.45, 0.78, 1.0],
+            );
 
-        final tip = metric.getTangentForOffset(end);
-        if (tip != null) {
-          canvas.drawCircle(
-            tip.position,
-            6.0,
-            Paint()
-              ..color = glow.withValues(
-                  alpha: (0.45 * fade * strength).clamp(0.0, 1.0).toDouble())
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
-          );
-          canvas.drawCircle(
-            tip.position,
-            2.4,
-            Paint()
-              ..color = core.withValues(
-                  alpha: (1.0 * fade * strength).clamp(0.0, 1.0).toDouble())
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-          );
-        }
+        // Três passadas do mesmo traço: halo largo e difuso, corpo, e o
+        // núcleo fino. Cada uma é um stroke só — nada de emenda.
+        canvas.drawPath(
+          segment,
+          Paint()
+            ..shader = shade(glow, dark ? 0.34 : 0.44)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 7
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+        );
+        canvas.drawPath(
+          segment,
+          Paint()
+            ..shader = shade(glow, dark ? 0.82 : 0.92)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+        canvas.drawPath(
+          segment,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tail,
+              headPos,
+              [
+                core.withValues(alpha: 0),
+                core.withValues(alpha: a(0.5)),
+                core.withValues(alpha: a(1)),
+              ],
+              const [0.0, 0.62, 1.0],
+            )
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round,
+        );
+
+        // Cabeça: núcleo quase branco com dois halos.
+        canvas.drawCircle(
+          headPos,
+          8,
+          Paint()
+            ..color = glow.withValues(alpha: a(0.3))
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+        );
+        canvas.drawCircle(
+          headPos,
+          3.6,
+          Paint()
+            ..color = glow.withValues(alpha: a(0.6))
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        );
+        canvas.drawCircle(
+          headPos,
+          1.9,
+          Paint()
+            ..color = core.withValues(alpha: a(1))
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+        );
         break;
       }
     }

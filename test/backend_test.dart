@@ -133,6 +133,75 @@ void main() {
     test('usa a API publicada como base padrao', () {
       expect(ApiClient.baseUrl, 'https://api-convexa.altvia.cloud');
     });
+
+    test('troca o refresh token e repete a requisicao ao tomar 401', () async {
+      var meCalls = 0;
+      var refreshCalls = 0;
+      final api = ApiClient(
+        httpClient: MockClient((request) async {
+          final path = request.url.path;
+          if (path == '/api/auth/refresh') {
+            refreshCalls++;
+            expect(jsonDecode(request.body),
+                {'refreshToken': 'refresh-velho'});
+            return http.Response(
+              jsonEncode(
+                  {'accessToken': 'access-novo', 'refreshToken': 'refresh-novo'}),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          if (path == '/api/auth/me') {
+            meCalls++;
+            if (meCalls == 1) {
+              return http.Response(jsonEncode({'message': 'expirado'}), 401,
+                  headers: {'content-type': 'application/json'});
+            }
+            expect(request.headers['Authorization'], 'Bearer access-novo');
+            return http.Response(
+              jsonEncode({
+                'user': {'name': 'Ana'},
+                'business': {'id': 'b1', 'name': 'Central'},
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+      api.setSession('access-velho', 'refresh-velho');
+
+      final data = await api.get('/api/auth/me');
+
+      expect(refreshCalls, 1);
+      expect(meCalls, 2);
+      expect((data as Map)['business']['name'], 'Central');
+      expect(api.token, 'access-novo');
+      expect(api.refreshTokenValue, 'refresh-novo');
+    });
+
+    test('nao tenta refresh quando allowRefresh e false', () async {
+      var refreshCalls = 0;
+      final api = ApiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/api/auth/refresh') {
+            refreshCalls++;
+            return http.Response('{}', 200);
+          }
+          return http.Response(jsonEncode({'message': 'nao'}), 401,
+              headers: {'content-type': 'application/json'});
+        }),
+      );
+      api.setSession('a', 'r');
+
+      await expectLater(
+        api.post('/api/auth/login', body: {}, allowRefresh: false),
+        throwsA(isA<ApiException>()
+            .having((e) => e.statusCode, 'status', 401)),
+      );
+      expect(refreshCalls, 0);
+    });
   });
 
   group('ServiceRepository', () {
@@ -238,6 +307,94 @@ void main() {
       expect(restored.upsellServiceIds, ['s1', 's2']);
       expect(restored.reminderMinutesBefore, 90);
       expect(restored.googleCalendarSync, isTrue);
+    });
+  });
+
+  group('ScheduleRepository.availability', () {
+    test('le os horarios livres do campo slots da API', () async {
+      final api = clientReturning({
+        'date': '2026-09-10',
+        'serviceId': 's1',
+        'durationMinutes': 30,
+        'totalSlots': 2,
+        'slots': [
+          {'employeeId': 'e1', 'startAt': '2026-09-10T13:00:00.000Z'},
+          {'employeeId': 'e1', 'startAt': '2026-09-10T13:30:00.000Z'},
+        ],
+      });
+      final repo = ScheduleRepository(RepositoryContext(api: api));
+
+      final slots = await repo.availability(DateTime(2026, 9, 10), 's1');
+
+      expect(slots, hasLength(2));
+      expect(slots.first.toUtc(), DateTime.utc(2026, 9, 10, 13));
+    });
+
+    test('devolve vazio quando a resposta nao traz slots', () async {
+      final api = clientReturning({'totalSlots': 0});
+      final repo = ScheduleRepository(RepositoryContext(api: api));
+
+      expect(await repo.availability(DateTime(2026, 9, 10), 's1'), isEmpty);
+    });
+  });
+
+  group('AuthRepository sessao', () {
+    test('restore reidrata a sessao a partir do refresh token guardado',
+        () async {
+      final api = ApiClient(
+        httpClient: MockClient((request) async {
+          expect(request.url.path, '/api/auth/me');
+          return http.Response(
+            jsonEncode({
+              'user': {'name': 'Ana', 'email': 'ana@x.com'},
+              'business': {'id': 'b1', 'name': 'Central'},
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      api.setSession('acc', 'ref');
+      final repo = AuthRepository(RepositoryContext(api: api));
+
+      final session = await repo.restore();
+
+      expect(session, isNotNull);
+      expect(session!.businessName, 'Central');
+      expect(session.token, 'acc');
+      expect(session.refreshToken, 'ref');
+    });
+
+    test('restore devolve null e limpa a sessao quando o me falha', () async {
+      final api = ApiClient(
+        httpClient: MockClient((request) async => http.Response(
+              jsonEncode({'message': 'x'}),
+              401,
+              headers: {'content-type': 'application/json'},
+            )),
+      );
+      api.setSession('acc', 'ref');
+      final repo = AuthRepository(RepositoryContext(api: api));
+
+      expect(await repo.restore(), isNull);
+      expect(api.hasStoredSession, isFalse);
+    });
+
+    test('signOutRemote envia o refresh token no corpo do logout', () async {
+      Object? sentBody;
+      final api = ApiClient(
+        httpClient: MockClient((request) async {
+          expect(request.url.path, '/api/auth/logout');
+          sentBody = jsonDecode(request.body);
+          return http.Response('', 204);
+        }),
+      );
+      api.setSession('access-1', 'refresh-1');
+      final repo = AuthRepository(RepositoryContext(api: api));
+
+      await repo.signOutRemote();
+
+      expect(sentBody, {'refreshToken': 'refresh-1'});
     });
   });
 }

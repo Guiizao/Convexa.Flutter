@@ -48,11 +48,14 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     if (_submitting || !_validate()) return;
     setState(() => _submitting = true);
-    // API: o token devolvido pelo login fica em memória (ApiClient).
-    // Para "continuar conectado" entre recarregamentos da página, persistir
-    // o token aqui — ex.: window.localStorage no Flutter Web — e restaurá-lo
-    // no boot chamando AuthRepository.me().
-    await AppScope.read(context).signIn(_email.text, _password.text);
+    // "Continuar conectado": quando marcado, o ApiClient grava access + refresh
+    // token no localStorage (Flutter Web) e o app restaura a sessão no boot
+    // (AppState.restoreSession). Desmarcado, a sessão vive só nesta aba.
+    await AppScope.read(context).signIn(
+      _email.text,
+      _password.text,
+      keepSignedIn: _keepSignedIn,
+    );
     if (mounted) setState(() => _submitting = false);
   }
 

@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'session_store.dart';
+
 // ===========================================================================
 // PONTO DE LIGAÇÃO COM A API — leia antes de mexer.
 //
@@ -46,15 +48,48 @@ class ApiClient {
   static const Duration timeout = Duration(seconds: 12);
 
   final http.Client _http;
+  final SessionStore _store;
   String? _token;
+  String? _refreshToken;
+  Future<bool>? _refreshInFlight;
 
-  ApiClient({http.Client? httpClient}) : _http = httpClient ?? http.Client();
+  ApiClient({http.Client? httpClient, SessionStore? store})
+      : _http = httpClient ?? http.Client(),
+        _store = store ?? SessionStore() {
+    _token = _store.accessToken;
+    _refreshToken = _store.refreshToken;
+  }
 
   bool get hasToken => _token != null && _token!.isNotEmpty;
+  bool get hasStoredSession =>
+      _refreshToken != null && _refreshToken!.isNotEmpty;
   String? get token => _token;
+  String? get refreshTokenValue => _refreshToken;
 
+  /// Só o access token, sem persistir — usado em testes e fluxos curtos.
   void setToken(String? value) => _token = value;
-  void clearToken() => _token = null;
+
+  /// Guarda a sessão inteira. `persist: true` grava no `localStorage` (web)
+  /// para o "continuar conectado"; `false` mantém só em memória.
+  void setSession(String accessToken, String refreshToken,
+      {bool persist = true}) {
+    _token = accessToken.isEmpty ? null : accessToken;
+    _refreshToken = refreshToken.isEmpty ? null : refreshToken;
+    if (persist && _token != null && _refreshToken != null) {
+      _store.save(accessToken: accessToken, refreshToken: refreshToken);
+    } else {
+      _store.clear();
+    }
+  }
+
+  void clearToken() => clearSession();
+
+  void clearSession() {
+    _token = null;
+    _refreshToken = null;
+    _refreshInFlight = null;
+    _store.clear();
+  }
 
   Map<String, String> _headers({bool json = true}) => {
         if (json) 'Content-Type': 'application/json',
@@ -73,29 +108,57 @@ class ApiClient {
     );
   }
 
-  Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>
-      _send(() => _http.get(_uri(path, query), headers: _headers(json: false)));
+  Future<dynamic> get(String path,
+          {Map<String, dynamic>? query, bool allowRefresh = true}) =>
+      _send(() => _http.get(_uri(path, query), headers: _headers(json: false)),
+          allowRefresh: allowRefresh);
 
-  Future<dynamic> post(String path, {Object? body}) => _send(
-      () => _http.post(_uri(path), headers: _headers(), body: jsonEncode(body)));
+  Future<dynamic> post(String path, {Object? body, bool allowRefresh = true}) =>
+      _send(
+          () => _http.post(_uri(path),
+              headers: _headers(), body: jsonEncode(body)),
+          allowRefresh: allowRefresh);
 
-  Future<dynamic> patch(String path, {Object? body}) => _send(() =>
-      _http.patch(_uri(path), headers: _headers(), body: jsonEncode(body)));
+  Future<dynamic> patch(String path, {Object? body, bool allowRefresh = true}) =>
+      _send(
+          () => _http.patch(_uri(path),
+              headers: _headers(), body: jsonEncode(body)),
+          allowRefresh: allowRefresh);
 
-  Future<dynamic> put(String path, {Object? body}) => _send(
-      () => _http.put(_uri(path), headers: _headers(), body: jsonEncode(body)));
+  Future<dynamic> put(String path, {Object? body, bool allowRefresh = true}) =>
+      _send(
+          () => _http.put(_uri(path),
+              headers: _headers(), body: jsonEncode(body)),
+          allowRefresh: allowRefresh);
 
-  Future<dynamic> delete(String path) =>
-      _send(() => _http.delete(_uri(path), headers: _headers(json: false)));
+  Future<dynamic> delete(String path, {bool allowRefresh = true}) => _send(
+      () => _http.delete(_uri(path), headers: _headers(json: false)),
+      allowRefresh: allowRefresh);
 
-  Future<dynamic> _send(Future<http.Response> Function() request) async {
-    late final http.Response response;
+  Future<dynamic> _send(Future<http.Response> Function() request,
+      {bool allowRefresh = true}) async {
+    late http.Response response;
     try {
       response = await request().timeout(timeout);
     } on TimeoutException {
       throw const ApiException(408, 'A API demorou demais para responder.');
     } catch (_) {
       throw const ApiException(0, 'Não foi possível falar com o servidor.');
+    }
+
+    // Access token dura 15 min. Ao tomar 401, troca pelo refresh token uma vez
+    // e repete a requisição — é o que mantém o painel logado sem pedir a senha.
+    if (response.statusCode == 401 &&
+        allowRefresh &&
+        hasStoredSession &&
+        await _ensureRefreshed()) {
+      try {
+        response = await request().timeout(timeout);
+      } on TimeoutException {
+        throw const ApiException(408, 'A API demorou demais para responder.');
+      } catch (_) {
+        throw const ApiException(0, 'Não foi possível falar com o servidor.');
+      }
     }
 
     final hasBody = response.body.isNotEmpty;
@@ -120,6 +183,54 @@ class ApiClient {
           (map['message'] ?? _defaultMessage(response.statusCode)).toString(),
       code: code,
     );
+  }
+
+  /// A API **rotaciona** o refresh token a cada uso e derruba a sessão inteira
+  /// se um token já revogado voltar. O `_refreshInFlight` garante uma troca por
+  /// vez mesmo quando várias chamadas tomam 401 juntas.
+  Future<bool> _ensureRefreshed() => _refreshInFlight ??=
+      _doRefresh().whenComplete(() => _refreshInFlight = null);
+
+  Future<bool> _doRefresh() async {
+    final rt = _refreshToken;
+    if (rt == null || rt.isEmpty) return false;
+
+    late http.Response res;
+    try {
+      res = await _http
+          .post(_uri('/api/auth/refresh'),
+              headers: _headers(), body: jsonEncode({'refreshToken': rt}))
+          .timeout(timeout);
+    } catch (_) {
+      return false;
+    }
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      if (res.statusCode == 401) clearSession();
+      return false;
+    }
+
+    Map<String, dynamic> body;
+    try {
+      final decoded = jsonDecode(res.body);
+      body = decoded is Map<String, dynamic> ? decoded : const {};
+      final inner = body['data'];
+      if (inner is Map<String, dynamic>) body = inner;
+    } catch (_) {
+      return false;
+    }
+
+    final access = (body['accessToken'] ?? body['token'] ?? '').toString();
+    final refresh = (body['refreshToken'] ?? '').toString();
+    if (access.isEmpty) return false;
+
+    _token = access;
+    if (refresh.isNotEmpty) _refreshToken = refresh;
+    // Só re-persiste se a sessão já estava persistida (checkbox marcado).
+    if (_store.hasSession || _store.accessToken != null) {
+      _store.save(accessToken: _token!, refreshToken: _refreshToken!);
+    }
+    return true;
   }
 
   /// A API garante que `code` é estável entre versões, enquanto `message` é

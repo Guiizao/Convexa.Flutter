@@ -17,63 +17,105 @@ class AuthRepository {
   AuthRepository(this.ctx);
 
   /// API: POST /api/auth/login
-  /// body { email, password } -> { token, user, business }
-  Future<Session> signIn(String email, String password) async {
-    final data = await ctx.api.post('/api/auth/login', body: {
-      'email': email.trim(),
-      'password': password,
-    });
+  /// body { email, password } -> { accessToken, refreshToken, user, business }
+  ///
+  /// `keepSignedIn` liga o "continuar conectado": grava os tokens no
+  /// `localStorage` (só no Flutter Web) para sobreviver a um recarregamento.
+  Future<Session> signIn(
+    String email,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
+    final data = await ctx.api.post(
+      '/api/auth/login',
+      body: {'email': email.trim(), 'password': password},
+      allowRefresh: false,
+    );
     final session = Session.fromJson(_asMap(data));
     if (session.token.isEmpty) {
       throw const ApiException(500, 'A API não devolveu um token de acesso.');
     }
-    ctx.api.setToken(session.token);
+    ctx.api.setSession(
+      session.token,
+      session.refreshToken,
+      persist: keepSignedIn,
+    );
     return session;
   }
 
   /// API: POST /api/auth/register
-  /// body { business: { name, slug }, owner: { name, email, password } }
+  /// body { business: { name, slug, timezone }, owner: { name, email, password } }
   Future<Session> register({
     required String businessName,
     required String businessSlug,
     required String ownerName,
     required String email,
     required String password,
+    String timezone = 'America/Sao_Paulo',
   }) async {
-    final data = await ctx.api.post('/api/auth/register', body: {
-      'business': {'name': businessName, 'slug': businessSlug},
-      'owner': {'name': ownerName, 'email': email.trim(), 'password': password},
-    });
+    final data = await ctx.api.post(
+      '/api/auth/register',
+      body: {
+        'business': {
+          'name': businessName,
+          'slug': businessSlug,
+          'timezone': timezone,
+        },
+        'owner': {
+          'name': ownerName,
+          'email': email.trim(),
+          'password': password,
+        },
+      },
+      allowRefresh: false,
+    );
     final session = Session.fromJson(_asMap(data));
-    if (session.token.isNotEmpty) ctx.api.setToken(session.token);
+    if (session.token.isNotEmpty) {
+      ctx.api.setSession(session.token, session.refreshToken);
+    }
     return session;
   }
 
-  /// API: GET /api/auth/me — revalida o token guardado ao reabrir o painel.
+  /// API: GET /api/auth/me — devolve { user, business } (sem tokens).
   Future<Session> me() async {
     final data = await ctx.api.get('/api/auth/me');
     return Session.fromJson(_asMap(data));
   }
 
-  /// API: POST /api/auth/refresh — troca o refresh token por um access novo.
-  /// É o caminho para "continuar conectado" sem guardar a senha.
-  Future<String> refreshToken() async {
-    final data = await ctx.api.post('/api/auth/refresh');
-    final token = (_asMap(data)['token'] ?? '').toString();
-    if (token.isNotEmpty) ctx.api.setToken(token);
-    return token;
+  /// Reidrata a sessão guardada ao abrir o painel. O access token pode já ter
+  /// expirado (15 min) — o `ApiClient` troca pelo refresh sozinho na chamada a
+  /// `/api/auth/me`. Devolve `null` se não há sessão válida.
+  Future<Session?> restore() async {
+    if (!ctx.api.hasStoredSession) return null;
+    try {
+      final me = _asMap(await ctx.api.get('/api/auth/me'));
+      return Session.fromJson({
+        ...me,
+        'accessToken': ctx.api.token,
+        'refreshToken': ctx.api.refreshTokenValue,
+      });
+    } on ApiException {
+      ctx.api.clearSession();
+      return null;
+    }
   }
 
-  /// API: POST /api/auth/logout — invalida a sessão no servidor.
+  /// API: POST /api/auth/logout — exige Bearer + { refreshToken } no corpo.
   Future<void> signOutRemote() async {
+    final rt = ctx.api.refreshTokenValue;
+    if (rt == null || rt.isEmpty) return;
     try {
-      await ctx.api.post('/api/auth/logout');
+      await ctx.api.post(
+        '/api/auth/logout',
+        body: {'refreshToken': rt},
+        allowRefresh: false,
+      );
     } on ApiException {
       // Sair localmente vale mesmo se o servidor não responder.
     }
   }
 
-  void signOut() => ctx.api.clearToken();
+  void signOut() => ctx.api.clearSession();
 }
 
 class ServiceRepository {
@@ -213,8 +255,8 @@ class ScheduleRepository {
   }
 
   /// API: GET /api/availability?serviceId=&date=&employeeId=&limit=
-  /// Devolve os horários livres calculados pelo motor de agenda do backend,
-  /// já descontando pausas, folgas e horários ocupados.
+  /// Devolve `{ date, serviceId, durationMinutes, totalSlots, slots: [...] }`.
+  /// Cada slot é `{ employeeId, startAt, endAt }` com instante ISO-8601.
   Future<List<DateTime>> availability(
     DateTime date,
     String serviceId, {
@@ -222,13 +264,16 @@ class ScheduleRepository {
     int limit = 20,
   }) async {
     if (ctx.demoMode) return const [];
-    final data = await ctx.api.get('/api/availability', query: {
+    final data = _asMap(await ctx.api.get('/api/availability', query: {
       'serviceId': serviceId,
       'date': _isoDate(date),
       if (employeeId != null) 'employeeId': employeeId,
       'limit': limit,
-    });
-    return _asList(data)
+    }));
+    final slots = data['slots'];
+    if (slots is! List) return const [];
+    return slots
+        .whereType<Map>()
         .map((e) =>
             DateTime.tryParse((e['startAt'] ?? e['start'] ?? '').toString())
                 ?.toLocal())

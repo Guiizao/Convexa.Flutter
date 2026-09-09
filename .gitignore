@@ -9,5 +9,6 @@ pubspec.lock
 
 # ferramentas locais (nao vao para o repo compartilhado)
 .claude/
+.codex/
 .vexp/
 .vscode/

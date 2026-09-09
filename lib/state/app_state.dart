@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../api/api_client.dart';
@@ -16,6 +18,9 @@ class AppState extends ChangeNotifier {
     shifts = ShiftRepository(_ctx);
     metricsRepo = MetricsRepository(_ctx);
     settingsRepo = SettingsRepository(_ctx);
+    // Se há sessão guardada (web), o app abre num splash até o restore terminar,
+    // em vez de piscar a tela de login.
+    _restoring = _ctx.api.hasStoredSession;
   }
 
   final RepositoryContext _ctx;
@@ -29,6 +34,7 @@ class AppState extends ChangeNotifier {
   bool _isDark = true;
   Session? _session;
   bool _demoMode = false;
+  bool _restoring = false;
 
   LoadStatus _status = LoadStatus.idle;
   String? _errorMessage;
@@ -51,6 +57,7 @@ class AppState extends ChangeNotifier {
   bool get isDark => _isDark;
   bool get isSignedIn => _session != null;
   bool get demoMode => _demoMode;
+  bool get isRestoringSession => _restoring;
   Session? get session => _session;
   LoadStatus get status => _status;
   String? get errorMessage => _errorMessage;
@@ -93,14 +100,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> signIn(String email, String password) async {
+  Future<void> signIn(
+    String email,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
     _status = LoadStatus.loading;
     _errorMessage = null;
     notifyListeners();
     try {
       _ctx.demoMode = false;
       _demoMode = false;
-      _session = await auth.signIn(email, password);
+      _session = await auth.signIn(email, password, keepSignedIn: keepSignedIn);
       await _loadWorkspace();
       _status = LoadStatus.ready;
     } on ApiException catch (e) {
@@ -109,6 +120,27 @@ class AppState extends ChangeNotifier {
       _session = null;
     }
     notifyListeners();
+  }
+
+  /// Chamado uma vez no boot. Se havia sessão guardada e ela ainda vale, entra
+  /// direto no painel; senão cai na tela de login sem alarde.
+  Future<void> restoreSession() async {
+    if (!_restoring) return;
+    try {
+      final restored = await auth.restore();
+      if (restored != null && restored.token.isNotEmpty) {
+        _session = restored;
+        _status = LoadStatus.loading;
+        notifyListeners();
+        await _loadWorkspace();
+        _status = LoadStatus.ready;
+      }
+    } on ApiException {
+      _session = null;
+    } finally {
+      _restoring = false;
+      notifyListeners();
+    }
   }
 
   Future<void> enterDemoMode() async {
@@ -131,9 +163,15 @@ class AppState extends ChangeNotifier {
   }
 
   void signOut({String? message}) {
+    // Logout explícito do usuário (sem `message`): avisa o servidor para
+    // revogar o refresh token, sem bloquear a saída se a rede falhar.
+    if (message == null && !_demoMode) {
+      unawaited(auth.signOutRemote());
+    }
     auth.signOut();
     _ctx.demoMode = false;
     _demoMode = false;
+    _restoring = false;
     _session = null;
     _status = message == null ? LoadStatus.idle : LoadStatus.failed;
     _errorMessage = message;

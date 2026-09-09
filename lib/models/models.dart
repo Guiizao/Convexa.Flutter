@@ -44,6 +44,7 @@ extension BookingChannelX on BookingChannel {
 
 class Session {
   final String token;
+  final String refreshToken;
   final String businessId;
   final String businessName;
   final String userName;
@@ -51,6 +52,7 @@ class Session {
 
   const Session({
     required this.token,
+    this.refreshToken = '',
     required this.businessId,
     required this.businessName,
     required this.userName,
@@ -64,6 +66,7 @@ class Session {
         const {};
     return Session(
       token: (json['token'] ?? json['accessToken'] ?? '').toString(),
+      refreshToken: (json['refreshToken'] ?? '').toString(),
       businessId: (business['id'] ?? json['businessId'] ?? '').toString(),
       businessName: (business['name'] ?? '').toString(),
       userName: (user['name'] ?? '').toString(),

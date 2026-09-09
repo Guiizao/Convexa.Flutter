@@ -54,33 +54,57 @@ Sem dependência de gerenciador de estado externo: `ChangeNotifier` +
 ## Contrato com a API
 
 Todos os pontos de integração estão marcados com comentários `// API:` em
-`lib/api/repositories.dart`. Autenticação por `Authorization: Bearer <token>`;
-o `businessId` é derivado do token no servidor — o painel **não** envia
-`x-business-id`.
+`lib/api/repositories.dart`. A tabela abaixo reflete o **contrato real da API
+publicada** (`GabrielFante/ConvexaAPI`, relatório de deploy de 07/09/2026).
+
+Autenticação por `Authorization: Bearer <accessToken>`. O access token dura
+**15 minutos**; o painel guarda o `refreshToken` (30 dias) e troca por um
+access novo automaticamente ao tomar `401` (`POST /api/auth/refresh`, que
+**rotaciona** o refresh token). O `businessId` vem do token — o painel **não**
+envia `x-business-id`.
 
 | Método | Rota | Para quê |
 |---|---|---|
-| POST | `/api/auth/login` | `{email, password}` → `{token, user, business}` |
-| POST | `/api/auth/register` | `{business:{name,slug}, owner:{name,email,password}}` |
-| GET | `/api/auth/me` | revalida o token guardado |
-| GET | `/api/services` | catálogo de serviços |
-| POST/PATCH/DELETE | `/api/services[/:id]` | CRUD de serviços |
-| GET | `/api/appointments?date=` | agenda do dia |
-| GET | `/api/appointments?from=&to=` | dias com agendamento no mês |
-| PATCH | `/api/appointments/:id` | `{status}` |
-| GET | `/api/appointments/availability?date=&serviceId=` | horários livres |
-| GET/PUT | `/api/business-hours` | janela de atendimento do dia |
-| POST | `/api/shift/open` | abre o expediente e dispara o aviso de abertura |
-| POST | `/api/shift/close` | encerra o dia e programa o dia seguinte |
-| GET | `/api/metrics?month=&compareTo=` | KPIs, receita por semana, serviços |
-| GET/PUT | `/api/settings` | regras do agente (ver abaixo) |
+| GET | `/health` | checagem simples (fora do prefixo `/api`) |
+| POST | `/api/auth/register` | `{business:{name,slug,timezone}, owner:{name,email,password}}` → `{accessToken, refreshToken, user, business}` |
+| POST | `/api/auth/login` | `{email, password}` → `{accessToken, refreshToken, user, business}` |
+| POST | `/api/auth/refresh` | `{refreshToken}` → `{accessToken, refreshToken}` |
+| POST | `/api/auth/logout` | `Bearer` + `{refreshToken}` |
+| GET | `/api/auth/me` | `{user, business}` — revalida a sessão guardada |
+| POST | `/api/auth/forgot-password` · `/reset-password` | **503 no piloto** — recuperação de senha desligada |
+| GET · POST | `/api/services` · GET/PATCH/DELETE `/api/services/:id` | catálogo e CRUD de serviços |
+| GET | `/api/appointments?from=&to=` | agenda por intervalo ISO-8601 (também `customerId`, `employeeId`, `status`) |
+| GET | `/api/appointments/:id` | um agendamento |
+| POST | `/api/appointments` | `{customerId, serviceId, employeeId, startAt, notes?}` |
+| POST | `/api/appointments/:id/confirm` · `/complete` · `/cancel` | transição de status — uma ação por rota |
+| PATCH | `/api/appointments/:id/reschedule` | `{startAt, employeeId?}` |
+| GET | `/api/availability?serviceId=&date=&employeeId=&limit=` | `{slots:[{employeeId,startAt,endAt}], totalSlots}` |
+| GET | `/api/business` | negócio com `hours`, `closedDays`, `vacations` (sem segredos da Meta) |
+| PATCH · DELETE | `/api/business` | editar / remover (perfil `OWNER`) |
+| PUT | `/api/business/hours` | `{hours:[{dayOfWeek,opensAt,closesAt}]}` — grade **semanal** |
+| GET · POST · DELETE | `/api/business/closed-days[/:id]` | folgas por data |
+| GET · POST · DELETE | `/api/business/vacations[/:id]` | férias |
+| GET · POST · DELETE | `/api/time-blocks[/:id]` | pausas/bloqueios por intervalo |
+| GET · POST | `/api/customers` · POST `/api/customers/resolve` · GET/PATCH/DELETE `/:id` | clientes |
+| GET · POST | `/api/employees` · GET/PATCH/DELETE `/:id` · PUT `/:id/services` · PUT `/:id/hours` | profissionais |
 
-Rotas que ainda não existirem no backend fazem o painel cair no estado vazio —
-ele nunca inventa dado para preencher a tela.
+**Não existem** no backend: `/api/metrics`, `/api/settings`, `/api/shift/open`,
+`/api/shift/close`, `/api/business-hours`, nem um `PATCH /api/appointments/:id`
+genérico. O painel cai no estado vazio nesses casos — calcula o mês a partir
+dos próprios agendamentos e lê as configs do agente de `/api/business`. Ele
+nunca inventa dado para preencher a tela.
 
-### Flags que a automação (n8n) consome
+> **CORS:** a API publicada hoje só libera a própria origem
+> (`https://api-convexa.altvia.cloud`). Para o painel rodar em `localhost` ou
+> em domínio próprio, as origens precisam entrar no `CORS_ORIGINS`/`APP_URL`
+> do backend — é um pedido ao time de infra (seção 2 / pendência C06 do
+> relatório de deploy).
 
-`GET /api/settings` devolve o objeto que decide o comportamento do bot:
+### Configurações do agente que a automação (n8n) consome
+
+O painel lê e grava o que der em `/api/business` (`GET` devolve, `PATCH`
+grava). Hoje só `phone` (número do dono) tem campo correspondente; os demais
+switches abaixo ainda **não** existem no backend — ver `FUNCIONALIDADES.md`.
 
 | Campo | Efeito no agente |
 |---|---|
@@ -117,9 +141,10 @@ Reabrir é possível, e as ações fazem *rollback* na tela se a API recusar.
 - Nenhuma chave secreta no front-end. Tokens da Meta/WhatsApp, chave de IA e
   credencial do provedor de pagamento ficam apenas no servidor.
 - O painel só conversa com a própria API, sempre por HTTPS.
-- O token de sessão vive em memória. Persistir "continuar conectado" entre
-  recarregamentos ainda está pendente — ver o comentário em
-  `lib/ui/screens/login_screen.dart`.
+- **Continuar conectado:** com a opção marcada no login, o access e o refresh
+  token ficam no `localStorage` (só no Flutter Web) e a sessão é restaurada no
+  boot (`AppState.restoreSession`). Desmarcada, a sessão vive só na aba atual.
+  Ver `lib/api/session_store.dart`.
 - `web/robots.txt` bloqueia indexação: é um painel logado, não deve aparecer
   em busca.
 

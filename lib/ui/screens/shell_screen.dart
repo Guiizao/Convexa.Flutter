@@ -266,12 +266,21 @@ class _SideRail extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-                expanded ? Space.xl : Space.lg, Space.xl, Space.lg, Space.xl),
-            child: expanded
-                ? const ConvexaLogo(size: 24)
-                : const ConvexaMark(size: 24),
+          // Recolhido, a marca fica centrada na coluna como os ícones; antes
+          // herdava o padding do modo expandido e ficava torta.
+          SizedBox(
+            height: 72,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                  horizontal: expanded ? Space.xl : 0),
+              child: Align(
+                alignment:
+                    expanded ? Alignment.centerLeft : Alignment.center,
+                child: expanded
+                    ? const ConvexaLogo(size: 24)
+                    : const ConvexaMark(size: 26),
+              ),
+            ),
           ),
           Expanded(
             child: ListView.builder(
@@ -287,9 +296,13 @@ class _SideRail extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(Space.md),
+            padding: EdgeInsets.symmetric(
+                horizontal: expanded ? Space.md : Space.sm,
+                vertical: Space.md),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: expanded
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.center,
               children: [
                 if (state.demoMode) ...[
                   if (expanded)
@@ -298,8 +311,17 @@ class _SideRail extends StatelessWidget {
                   else
                     Tooltip(
                       message: 'Modo demonstração',
-                      child: Icon(Icons.science_outlined,
-                          size: 16, color: c.amber),
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: c.amberWash,
+                          borderRadius: BorderRadius.circular(Radii.sm),
+                        ),
+                        child: Icon(Icons.science_outlined,
+                            size: 15, color: c.amber),
+                      ),
                     ),
                   const SizedBox(height: Space.md),
                 ],
@@ -307,18 +329,19 @@ class _SideRail extends StatelessWidget {
                 const SizedBox(height: Space.md),
                 _RailFooter(expanded: expanded),
                 if (canToggle) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: Space.sm),
                   MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
                       onTap: onToggle,
                       child: Container(
-                        height: 34,
+                        height: 30,
+                        width: expanded ? double.infinity : 30,
                         alignment: expanded
                             ? Alignment.centerLeft
                             : Alignment.center,
                         padding: EdgeInsets.symmetric(
-                            horizontal: expanded ? Space.md : 0),
+                            horizontal: expanded ? Space.sm : 0),
                         child: Icon(
                           expanded
                               ? Icons.keyboard_double_arrow_left_rounded
@@ -430,7 +453,9 @@ class _RailFooter extends StatelessWidget {
     final session = state.session;
 
     if (!expanded) {
+      // Tudo com a mesma largura de 30, para a coluna ficar num eixo só.
       return Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Tooltip(
             message: session?.businessName ?? 'Conta',
@@ -441,14 +466,14 @@ class _RailFooter extends StatelessWidget {
             icon: state.isDark
                 ? Icons.light_mode_outlined
                 : Icons.dark_mode_outlined,
-            size: 32,
+            size: 30,
             tooltip: state.isDark ? 'Tema claro' : 'Tema escuro',
             onPressed: state.toggleTheme,
           ),
           const SizedBox(height: Space.sm),
           AppIconButton(
             icon: Icons.logout_rounded,
-            size: 32,
+            size: 30,
             tooltip: 'Sair',
             onPressed: state.signOut,
           ),

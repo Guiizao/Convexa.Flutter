@@ -315,7 +315,7 @@ class _ShiftProgress extends StatelessWidget {
           end: start + a.durationMinutes,
           color: switch (a.status) {
             AppointmentStatus.completed => c.success,
-            AppointmentStatus.confirmed => c.primary,
+            AppointmentStatus.confirmed => c.amber,
             AppointmentStatus.noShow => c.red,
             _ => c.info,
           },
@@ -364,7 +364,7 @@ class _ShiftProgress extends StatelessWidget {
           runSpacing: 6,
           children: [
             _LegendChip(color: c.info, label: 'Aguardando'),
-            _LegendChip(color: c.primary, label: 'Confirmado'),
+            _LegendChip(color: c.amber, label: 'Confirmado'),
             _LegendChip(color: c.success, label: 'Atendido'),
             if (state.bookedAppointments
                 .any((a) => a.status == AppointmentStatus.noShow))

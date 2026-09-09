@@ -4,6 +4,7 @@ import '../../core/formatters.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/palettes.dart';
 import '../../theme/tokens.dart';
 import '../components/buttons.dart';
 import '../components/inputs.dart';
@@ -131,6 +132,8 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
           ),
           const SizedBox(height: Space.lg),
         ],
+        const AppearanceCard(),
+        const SizedBox(height: Space.lg),
         _AgentCard(
           settings: s,
           ownerPhone: _ownerPhone,
@@ -493,6 +496,156 @@ class _IntegrationsCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Escolha de tema: claro/escuro e a paleta de cores. Fica fora do bloco de
+/// "alterações não salvas" porque é preferência local, aplicada na hora — não
+/// existe campo correspondente na API.
+class AppearanceCard extends StatelessWidget {
+  const AppearanceCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final state = AppScope.of(context);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(
+            title: 'Aparência',
+            subtitle: 'Vale só neste navegador. Não afeta o agente.',
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Text('Modo',
+                    style: AppType.h3.copyWith(color: c.t1)),
+              ),
+              SegmentedControl<bool>(
+                selected: state.isDark,
+                onChanged: (dark) {
+                  if (dark != state.isDark) state.toggleTheme();
+                },
+                options: const [
+                  (value: false, label: 'Claro', icon: Icons.light_mode_outlined),
+                  (value: true, label: 'Escuro', icon: Icons.dark_mode_outlined),
+                ],
+              ),
+            ],
+          ),
+          const AppDivider(),
+          Text('Paleta', style: AppType.h3.copyWith(color: c.t1)),
+          const SizedBox(height: 3),
+          Text(
+            'Verde continua significando concluído e âmbar continua significando atenção em todas elas.',
+            style: AppType.small.copyWith(color: c.t2, height: 1.5),
+          ),
+          const SizedBox(height: Space.lg),
+          ResponsiveGrid(
+            minItemWidth: 168,
+            spacing: Space.sm,
+            runSpacing: Space.sm,
+            children: [
+              for (final p in AppPalette.values)
+                _PaletteTile(
+                  palette: p,
+                  selected: p == state.palette,
+                  onTap: () => state.setPalette(p),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaletteTile extends StatelessWidget {
+  final AppPalette palette;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PaletteTile({
+    required this.palette,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final swatch = palette.swatch;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(Space.md),
+          decoration: BoxDecoration(
+            color: selected ? c.primaryWash : c.surf,
+            borderRadius: BorderRadius.circular(Radii.md),
+            border: Border.all(
+              color: selected ? c.primary : c.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Amostra: fundo, superfície e acento, empilhados como na tela.
+              SizedBox(
+                width: 34,
+                height: 34,
+                child: Stack(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: swatch[0],
+                        borderRadius: BorderRadius.circular(Radii.sm),
+                        border: Border.all(color: c.borderStrong),
+                      ),
+                    ),
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: Container(
+                        width: 13,
+                        height: 13,
+                        decoration: BoxDecoration(
+                          color: swatch[2],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: Space.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(palette.label,
+                        style: AppType.bodyStrong.copyWith(color: c.t1)),
+                    Text(
+                      palette.description,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.caption.copyWith(color: c.t2),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected)
+                Icon(Icons.check_circle_rounded, size: 16, color: c.primary),
+            ],
+          ),
+        ),
       ),
     );
   }

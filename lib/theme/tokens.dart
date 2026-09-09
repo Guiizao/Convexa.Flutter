@@ -49,6 +49,38 @@ class AppColors {
     required this.shadow,
   });
 
+
+  /// Interpola token a token, para a troca de tema ser uma transição e não um
+  /// corte seco. Usado pelo ColorScope no topo da árvore.
+  static AppColors lerp(AppColors a, AppColors b, double t) {
+    if (t <= 0) return a;
+    if (t >= 1) return b;
+    return AppColors(
+        bg: Color.lerp(a.bg, b.bg, t)!,
+        bgElevated: Color.lerp(a.bgElevated, b.bgElevated, t)!,
+        card: Color.lerp(a.card, b.card, t)!,
+        surf: Color.lerp(a.surf, b.surf, t)!,
+        surfHover: Color.lerp(a.surfHover, b.surfHover, t)!,
+        border: Color.lerp(a.border, b.border, t)!,
+        borderStrong: Color.lerp(a.borderStrong, b.borderStrong, t)!,
+        primary: Color.lerp(a.primary, b.primary, t)!,
+        primaryText: Color.lerp(a.primaryText, b.primaryText, t)!,
+        primaryWash: Color.lerp(a.primaryWash, b.primaryWash, t)!,
+        amber: Color.lerp(a.amber, b.amber, t)!,
+        amberWash: Color.lerp(a.amberWash, b.amberWash, t)!,
+        red: Color.lerp(a.red, b.red, t)!,
+        redWash: Color.lerp(a.redWash, b.redWash, t)!,
+        success: Color.lerp(a.success, b.success, t)!,
+        successWash: Color.lerp(a.successWash, b.successWash, t)!,
+        info: Color.lerp(a.info, b.info, t)!,
+        infoWash: Color.lerp(a.infoWash, b.infoWash, t)!,
+        t1: Color.lerp(a.t1, b.t1, t)!,
+        t2: Color.lerp(a.t2, b.t2, t)!,
+        t3: Color.lerp(a.t3, b.t3, t)!,
+        shadow: Color.lerp(a.shadow, b.shadow, t)!,
+    );
+  }
+
   static const AppColors dark = AppColors(
     bg: Color(0xFF040A06),
     bgElevated: Color(0xFF070F0A),

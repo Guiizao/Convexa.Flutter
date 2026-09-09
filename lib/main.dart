@@ -38,15 +38,18 @@ class _ConvexaAppState extends State<ConvexaApp> {
       state: widget.state,
       child: AnimatedBuilder(
         animation: widget.state,
-        builder: (context, _) => MaterialApp(
-          title: 'Convexa · Painel',
-          debugShowCheckedModeBanner: false,
-          theme: buildAppTheme(widget.state.isDark),
-          home: widget.state.isRestoringSession
-              ? const _BootSplash()
-              : widget.state.isSignedIn
-                  ? const ShellScreen()
-                  : const LoginScreen(),
+        builder: (context, _) => AnimatedColors(
+          target: widget.state.colors,
+          builder: (context, colors) => MaterialApp(
+            title: 'Convexa · Painel',
+            debugShowCheckedModeBanner: false,
+            theme: buildAppTheme(widget.state.isDark, widget.state.palette),
+            home: widget.state.isRestoringSession
+                ? const _BootSplash()
+                : widget.state.isSignedIn
+                    ? const ShellScreen()
+                    : const LoginScreen(),
+          ),
         ),
       ),
     );

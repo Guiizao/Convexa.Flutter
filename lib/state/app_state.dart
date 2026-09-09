@@ -6,6 +6,8 @@ import '../api/api_client.dart';
 import '../api/repositories.dart';
 import '../api/sample_data.dart';
 import '../models/models.dart';
+import '../theme/palettes.dart';
+import '../theme/tokens.dart';
 
 enum LoadStatus { idle, loading, ready, failed }
 
@@ -32,6 +34,7 @@ class AppState extends ChangeNotifier {
   late final SettingsRepository settingsRepo;
 
   bool _isDark = true;
+  AppPalette _palette = AppPalette.convexa;
   Session? _session;
   bool _demoMode = false;
   bool _restoring = false;
@@ -55,6 +58,8 @@ class AppState extends ChangeNotifier {
   List<AppNotification> _notifications = const [];
 
   bool get isDark => _isDark;
+  AppPalette get palette => _palette;
+  AppColors get colors => _palette.colors(_isDark);
   bool get isSignedIn => _session != null;
   bool get demoMode => _demoMode;
   bool get isRestoringSession => _restoring;
@@ -94,6 +99,12 @@ class AppState extends ChangeNotifier {
   int get confirmedRevenueCents => bookedAppointments
       .where((a) => a.status == AppointmentStatus.completed)
       .fold(0, (sum, a) => sum + a.priceCents);
+
+  void setPalette(AppPalette next) {
+    if (next == _palette) return;
+    _palette = next;
+    notifyListeners();
+  }
 
   void toggleTheme() {
     _isDark = !_isDark;

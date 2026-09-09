@@ -337,7 +337,7 @@ class AppointmentRow extends StatelessWidget {
     final c = context.colors;
     return switch (appointment.status) {
       AppointmentStatus.completed => c.success,
-      AppointmentStatus.confirmed => c.primary,
+      AppointmentStatus.confirmed => c.amber,
       AppointmentStatus.scheduled => c.info,
       AppointmentStatus.cancelled => c.t3,
       AppointmentStatus.noShow => c.red,
@@ -346,7 +346,7 @@ class AppointmentRow extends StatelessWidget {
 
   BadgeTone get _tone => switch (appointment.status) {
         AppointmentStatus.completed => BadgeTone.success,
-        AppointmentStatus.confirmed => BadgeTone.primary,
+        AppointmentStatus.confirmed => BadgeTone.warning,
         AppointmentStatus.scheduled => BadgeTone.info,
         AppointmentStatus.cancelled => BadgeTone.neutral,
         AppointmentStatus.noShow => BadgeTone.danger,

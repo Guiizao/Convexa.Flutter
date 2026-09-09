@@ -62,23 +62,31 @@ class _LoginScreenState extends State<LoginScreen> {
     final wide = Responsive.width(context) >= 940;
 
     if (wide) {
+      // O fundo cobre a tela inteira e o degradê o apaga sobre o formulário,
+      // em vez de o desenho parar numa borda seca no meio da tela.
       return Scaffold(
         backgroundColor: c.bg,
-        body: SafeArea(
-          child: Row(
-            children: [
-              const Expanded(flex: 5, child: _BrandPanel()),
-              Expanded(
-                flex: 4,
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(Space.xxxl),
-                    child: _form(context),
+        body: Stack(
+          children: [
+            const Positioned.fill(child: CircuitBackdrop()),
+            const Positioned.fill(child: BackdropScrim()),
+            SafeArea(
+              child: Row(
+                children: [
+                  const Expanded(flex: 5, child: _BrandPanel()),
+                  Expanded(
+                    flex: 4,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(Space.xxxl),
+                        child: _form(context),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -90,12 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Stack(
         children: [
           const Positioned.fill(child: CircuitBackdrop(subdued: true)),
-          const Positioned.fill(
-            child: BackdropScrim(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-            ),
-          ),
+          const Positioned.fill(child: BackdropScrim.centered()),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -268,15 +271,9 @@ class _BrandPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Container(
-      decoration: BoxDecoration(
-        color: c.bgElevated,
-        border: Border(right: BorderSide(color: c.border)),
-      ),
+    return SizedBox.expand(
       child: Stack(
         children: [
-          const Positioned.fill(child: CircuitBackdrop()),
-          const Positioned.fill(child: BackdropScrim()),
           Padding(
             padding: const EdgeInsets.all(Space.xxxl),
             child: Column(

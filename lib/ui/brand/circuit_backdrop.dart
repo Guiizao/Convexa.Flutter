@@ -120,8 +120,10 @@ class _CircuitPainter extends CustomPainter {
     Color(0xFF1FA65C),
   ];
 
-  static const _streak = 74.0;
-  static const _rest = 190.0;
+  // Cauda longa: cometa precisa de rastro, nao de um tracinho.
+  static const _streak = 150.0;
+  static const _rest = 180.0;
+  static const _slices = 18;
 
   List<Color> get _palette => dark ? _greensDark : _greensLight;
 
@@ -331,46 +333,68 @@ class _CircuitPainter extends CustomPainter {
       final glow = dark ? _greensDark[0] : _greensLight[2];
       final core = dark ? const Color(0xFFB9FFD6) : _greensLight[0];
 
+      // Cometa: a cauda sai em fatias, cada uma mais fina e mais apagada que
+      // a anterior. Traço de espessura constante com bolinha na ponta lê como
+      // minhoca; cometa é massa concentrada na cabeça e rastro sumindo atrás.
       for (final metric in tr.path.computeMetrics()) {
         if (from > metric.length) continue;
         final end = math.min(to, metric.length);
-        final segment = metric.extractPath(from, end);
+        if (end - from < 1) break;
 
-        canvas.drawPath(
-          segment,
-          Paint()
-            ..color = glow.withValues(
-                alpha: ((dark ? 0.30 : 0.42) * strength)
-                    .clamp(0.0, 1.0)
-                    .toDouble())
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.2
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-        );
-        canvas.drawPath(
-          segment,
-          Paint()
-            ..color = core.withValues(
-                alpha: ((dark ? 0.95 : 1.0) * strength)
-                    .clamp(0.0, 1.0)
-                    .toDouble())
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round,
-        );
+        for (var s = 0; s < _slices; s++) {
+          final f1 = (s + 1) / _slices;
+          final d0 = from + (end - from) * (s / _slices);
+          final d1 = from + (end - from) * f1;
+          if (d1 - d0 < 0.4) continue;
+
+          // Elevar ao quadrado concentra brilho e espessura na frente.
+          final k = f1 * f1;
+          final segment = metric.extractPath(d0, d1);
+
+          canvas.drawPath(
+            segment,
+            Paint()
+              ..color = glow.withValues(
+                  alpha: ((dark ? 0.34 : 0.46) * k * strength)
+                      .clamp(0.0, 1.0)
+                      .toDouble())
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.6 + 4.6 * k
+              ..strokeCap = StrokeCap.round
+              ..strokeJoin = StrokeJoin.round
+              ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3 + 7 * k),
+          );
+          canvas.drawPath(
+            segment,
+            Paint()
+              ..color = core.withValues(
+                  alpha: ((dark ? 0.95 : 1.0) * k * strength)
+                      .clamp(0.0, 1.0)
+                      .toDouble())
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.5 + 1.5 * k
+              ..strokeCap = StrokeCap.round
+              ..strokeJoin = StrokeJoin.round,
+          );
+        }
 
         final tip = metric.getTangentForOffset(end);
         if (tip != null) {
           canvas.drawCircle(
             tip.position,
-            2.8,
+            6.0,
+            Paint()
+              ..color = glow.withValues(
+                  alpha: (0.45 * strength).clamp(0.0, 1.0).toDouble())
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+          );
+          canvas.drawCircle(
+            tip.position,
+            2.4,
             Paint()
               ..color = core.withValues(
-                  alpha: (0.9 * strength).clamp(0.0, 1.0).toDouble())
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+                  alpha: (1.0 * strength).clamp(0.0, 1.0).toDouble())
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
           );
         }
         break;

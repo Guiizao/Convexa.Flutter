@@ -358,6 +358,22 @@ class _ShiftProgress extends StatelessWidget {
         ),
         const SizedBox(height: Space.md),
         ProgressBar(value: elapsed),
+        const SizedBox(height: Space.lg),
+        Wrap(
+          spacing: Space.md,
+          runSpacing: 6,
+          children: [
+            _LegendChip(color: c.info, label: 'Aguardando'),
+            _LegendChip(color: c.primary, label: 'Confirmado'),
+            _LegendChip(color: c.success, label: 'Atendido'),
+            if (state.bookedAppointments
+                .any((a) => a.status == AppointmentStatus.noShow))
+              _LegendChip(color: c.red, label: 'Faltou'),
+            if (shift.breaks.isNotEmpty)
+              _LegendChip(color: c.t3, label: 'Pausa'),
+            _LegendChip(color: c.red, label: 'Agora', isLine: true),
+          ],
+        ),
       ],
     );
   }
@@ -383,46 +399,66 @@ class _HoursCard extends StatelessWidget {
             subtitle:
                 'Define quais horários o agente pode oferecer no WhatsApp.',
           ),
-          Row(
-            children: [
-              Expanded(
-                child: TimePickerField(
-                  label: 'Abertura',
-                  minutes: shift.hours.startMinutes,
-                  stepMinutes: 15,
-                  maxMinutes: shift.hours.endMinutes - 15,
-                  onChanged: locked
-                      ? (_) {}
-                      : (v) => state.updateShiftHours(
-                          shift.hours.copyWith(startMinutes: v)),
-                ),
-              ),
-              const SizedBox(width: Space.md),
-              Expanded(
-                child: TimePickerField(
-                  label: 'Encerramento',
-                  minutes: shift.hours.endMinutes,
-                  stepMinutes: 15,
-                  minMinutes: shift.hours.startMinutes + 15,
-                  onChanged: locked
-                      ? (_) {}
-                      : (v) => state.updateShiftHours(
-                          shift.hours.copyWith(endMinutes: v)),
-                ),
-              ),
-              const SizedBox(width: Space.md),
-              Expanded(
-                child: NumberStepper(
-                  label: 'Intervalo entre horários',
-                  value: shift.slotMinutes,
-                  suffix: ' min',
-                  step: 5,
-                  min: 10,
-                  max: 120,
-                  onChanged: locked ? (_) {} : state.updateSlotMinutes,
-                ),
-              ),
-            ],
+          // Três campos lado a lado não cabem em 375px: o valor era cortado no
+          // meio. Abaixo de 560px o intervalo desce para a própria linha.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final abertura = TimePickerField(
+                label: 'Abertura',
+                minutes: shift.hours.startMinutes,
+                stepMinutes: 15,
+                maxMinutes: shift.hours.endMinutes - 15,
+                onChanged: locked
+                    ? (_) {}
+                    : (v) => state.updateShiftHours(
+                        shift.hours.copyWith(startMinutes: v)),
+              );
+              final encerramento = TimePickerField(
+                label: 'Encerramento',
+                minutes: shift.hours.endMinutes,
+                stepMinutes: 15,
+                minMinutes: shift.hours.startMinutes + 15,
+                onChanged: locked
+                    ? (_) {}
+                    : (v) => state.updateShiftHours(
+                        shift.hours.copyWith(endMinutes: v)),
+              );
+              final intervalo = NumberStepper(
+                label: 'Intervalo entre horários',
+                value: shift.slotMinutes,
+                suffix: ' min',
+                step: 5,
+                min: 10,
+                max: 120,
+                onChanged: locked ? (_) {} : state.updateSlotMinutes,
+              );
+
+              if (constraints.maxWidth >= 560) {
+                return Row(
+                  children: [
+                    Expanded(child: abertura),
+                    const SizedBox(width: Space.md),
+                    Expanded(child: encerramento),
+                    const SizedBox(width: Space.md),
+                    Expanded(child: intervalo),
+                  ],
+                );
+              }
+
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: abertura),
+                      const SizedBox(width: Space.md),
+                      Expanded(child: encerramento),
+                    ],
+                  ),
+                  const SizedBox(height: Space.md),
+                  intervalo,
+                ],
+              );
+            },
           ),
           const AppDivider(),
           Row(
@@ -800,6 +836,38 @@ class _BreakDialogState extends State<_BreakDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LegendChip extends StatelessWidget {
+  final Color color;
+  final String label;
+  final bool isLine;
+
+  const _LegendChip({
+    required this.color,
+    required this.label,
+    this.isLine = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: isLine ? 2 : 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(isLine ? 1 : 3),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: AppType.caption.copyWith(color: c.t2)),
+      ],
     );
   }
 }

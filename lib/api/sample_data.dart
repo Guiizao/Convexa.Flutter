@@ -22,8 +22,24 @@ class SampleData {
           ))
       .toList();
 
+  /// Regra única de "este dia tem movimento". `bookedDays` e
+  /// `appointmentsFor` precisam concordar, senão o calendário marca um dia sem
+  /// ponto e a lista mostra atendimentos assim mesmo — foi o que acontecia.
+  static bool _hasMovement(DateTime date) =>
+      date.weekday != DateTime.sunday && date.day % 7 != 0;
+
+  /// Quantos horários aquele dia tem. Determinístico pela data, para o
+  /// calendário não mudar de conteúdo a cada rebuild.
+  static int _slotsFor(DateTime date) {
+    if (!_hasMovement(date)) return 0;
+    if (date.weekday == DateTime.saturday) return 6;
+    return 2 + (date.day * 7 + date.month * 3) % 4;
+  }
+
   static List<Appointment> appointmentsFor(DateTime date) {
     final day = DateTime(date.year, date.month, date.day);
+    final howMany = _slotsFor(day);
+    if (howMany == 0) return const [];
     final entries = <(int, int, String, String, String, int, AppointmentStatus, BookingChannel, bool)>[
       (9, 0, 'Daniel Morais', '5511970000001', 'Corte + barba', 6000,
           AppointmentStatus.completed, BookingChannel.whatsapp, true),
@@ -39,11 +55,23 @@ class SampleData {
           AppointmentStatus.scheduled, BookingChannel.whatsapp, false),
     ];
 
-    return entries.map((e) {
+    final today = DateTime.now();
+    final isPast = day.isBefore(DateTime(today.year, today.month, today.day));
+    final isFuture = day.isAfter(DateTime(today.year, today.month, today.day));
+
+    return entries.take(howMany).map((e) {
       final start = day.add(Duration(hours: e.$1, minutes: e.$2));
       final duration = e.$6 >= 6000 ? 50 : (e.$6 <= 1500 ? 15 : 30);
+
+      // Dia passado já foi atendido; dia futuro ainda não pode estar atendido.
+      final status = isPast
+          ? AppointmentStatus.completed
+          : (isFuture && e.$7 == AppointmentStatus.completed
+              ? AppointmentStatus.confirmed
+              : e.$7);
+
       return Appointment(
-        id: 'demo-${e.$1}-${e.$2}',
+        id: 'demo-${day.month}${day.day}-${e.$1}-${e.$2}',
         startAt: start,
         endAt: start.add(Duration(minutes: duration)),
         customerName: e.$3,
@@ -51,7 +79,7 @@ class SampleData {
         serviceName: e.$5,
         priceCents: e.$6,
         durationMinutes: duration,
-        status: e.$7,
+        status: status,
         channel: e.$8,
         prepaid: e.$9,
       );
@@ -62,7 +90,7 @@ class SampleData {
     final lastDay = DateTime(month.year, month.month + 1, 0).day;
     return {
       for (var d = 1; d <= lastDay; d++)
-        if (d % 3 != 0 && DateTime(month.year, month.month, d).weekday != 7) d
+        if (_slotsFor(DateTime(month.year, month.month, d)) > 0) d
     };
   }
 

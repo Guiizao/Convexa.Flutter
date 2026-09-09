@@ -26,8 +26,15 @@ String formatCurrencyCompact(int cents) {
 }
 
 String formatMinutesAsClock(int minutes) {
-  final normalized = minutes % (24 * 60);
-  return '${_pad2(normalized ~/ 60)}:${_pad2(normalized % 60)}';
+  // 1440 é meia-noite do dia seguinte e precisa aparecer como 24:00. Com
+  // `% 1440` ele virava 00:00, e a janela "09:00 às 24:00" era exibida como
+  // "09:00 às 00:00", parecendo dia zerado.
+  if (minutes >= 24 * 60) {
+    final hours = minutes ~/ 60;
+    return '${_pad2(hours)}:${_pad2(minutes % 60)}';
+  }
+  final safe = minutes < 0 ? 0 : minutes;
+  return '${_pad2(safe ~/ 60)}:${_pad2(safe % 60)}';
 }
 
 String formatDuration(int minutes) {

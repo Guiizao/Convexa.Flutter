@@ -3,8 +3,8 @@ import 'api_client.dart';
 import 'sample_data.dart';
 
 /// Quando `demoMode` é true o painel opera com um conjunto local de dados
-/// para demonstração, sem tocar na API. Ele é ligado automaticamente ao
-/// entrar pelo botão "Explorar em modo demonstração" na tela de login.
+/// para demonstração, sem tocar na API. Ele é ligado pelo botão
+/// "Explorar em modo demonstração" na tela de login.
 class RepositoryContext {
   final ApiClient api;
   bool demoMode;
@@ -55,6 +55,24 @@ class AuthRepository {
     return Session.fromJson(_asMap(data));
   }
 
+  /// API: POST /api/auth/refresh — troca o refresh token por um access novo.
+  /// É o caminho para "continuar conectado" sem guardar a senha.
+  Future<String> refreshToken() async {
+    final data = await ctx.api.post('/api/auth/refresh');
+    final token = (_asMap(data)['token'] ?? '').toString();
+    if (token.isNotEmpty) ctx.api.setToken(token);
+    return token;
+  }
+
+  /// API: POST /api/auth/logout — invalida a sessão no servidor.
+  Future<void> signOutRemote() async {
+    try {
+      await ctx.api.post('/api/auth/logout');
+    } on ApiException {
+      // Sair localmente vale mesmo se o servidor não responder.
+    }
+  }
+
   void signOut() => ctx.api.clearToken();
 }
 
@@ -98,56 +116,132 @@ class ScheduleRepository {
   final RepositoryContext ctx;
   ScheduleRepository(this.ctx);
 
-  /// API: GET /api/appointments?date=YYYY-MM-DD
+  /// API: GET /api/appointments?from=&to=
+  /// A rota filtra por instante ISO-8601 com fuso, não por data solta.
   Future<List<Appointment>> byDate(DateTime date) async {
     if (ctx.demoMode) return SampleData.appointmentsFor(date);
+    final start = DateTime(date.year, date.month, date.day);
+    return _range(start, start.add(const Duration(days: 1)));
+  }
+
+  Future<List<Appointment>> _range(DateTime from, DateTime to) async {
     final data = await ctx.api.get('/api/appointments', query: {
-      'date': _isoDate(date),
+      'from': _instant(from),
+      'to': _instant(to),
     });
     return _asList(data).map(Appointment.fromJson).toList();
   }
 
-  /// API: GET /api/appointments?from=YYYY-MM-DD&to=YYYY-MM-DD
+  /// API: GET /api/appointments?from=&to=
   /// Usado para marcar no calendário quais dias do mês têm agendamento.
   Future<Set<int>> bookedDaysOfMonth(DateTime month) async {
     if (ctx.demoMode) return SampleData.bookedDays(month);
     final first = DateTime(month.year, month.month, 1);
-    final last = DateTime(month.year, month.month + 1, 0);
-    final data = await ctx.api.get('/api/appointments', query: {
-      'from': _isoDate(first),
-      'to': _isoDate(last),
-    });
-    return _asList(data)
-        .map(Appointment.fromJson)
-        .map((a) => a.startAt.day)
-        .toSet();
+    final afterLast = DateTime(month.year, month.month + 1, 1);
+    final appointments = await _range(first, afterLast);
+    return appointments.map((a) => a.startAt.day).toSet();
   }
 
-  /// API: PATCH /api/appointments/:id  body { status }
+  /// Mudança de status. O backend expõe uma ação por rota, em vez de um PATCH
+  /// genérico com `status` no corpo — assim cada transição tem sua regra.
+  ///
+  /// API: POST /api/appointments/:id/confirm
+  /// API: POST /api/appointments/:id/complete
+  /// API: POST /api/appointments/:id/cancel
+  /// API: POST /api/appointments/:id/no-show
   Future<void> setStatus(String id, AppointmentStatus status) async {
     if (ctx.demoMode) return;
-    await ctx.api
-        .patch('/api/appointments/$id', body: {'status': status.wire});
+    final action = switch (status) {
+      AppointmentStatus.confirmed => 'confirm',
+      AppointmentStatus.completed => 'complete',
+      AppointmentStatus.cancelled => 'cancel',
+      AppointmentStatus.noShow => 'no-show',
+      AppointmentStatus.scheduled => null,
+    };
+    if (action == null) {
+      throw const ApiException(
+          400, 'Não há ação para voltar um horário a "aguardando".');
+    }
+    await ctx.api.post('/api/appointments/$id/$action');
   }
 
-  /// API: POST /api/appointments
-  Future<Appointment> create(Map<String, dynamic> payload) async {
-    final data = await ctx.api.post('/api/appointments', body: payload);
+  /// API: PATCH /api/appointments/:id/reschedule
+  /// body { startAt, employeeId? } — o backend revalida a disponibilidade,
+  /// então remarcar para um horário ocupado é recusado por ele, não por nós.
+  Future<Appointment> reschedule(
+    String id,
+    DateTime startAt, {
+    String? employeeId,
+  }) async {
+    final data = await ctx.api.patch(
+      '/api/appointments/$id/reschedule',
+      body: {
+        'startAt': _instant(startAt),
+        if (employeeId != null) 'employeeId': employeeId,
+      },
+    );
     return Appointment.fromJson(_asMap(data));
   }
 
-  /// API: GET /api/appointments/availability?date=&serviceId=
-  /// Devolve os horários livres calculados pelo motor de agenda do backend.
-  Future<List<DateTime>> availability(DateTime date, String serviceId) async {
-    if (ctx.demoMode) return const [];
-    final data = await ctx.api.get('/api/appointments/availability', query: {
-      'date': _isoDate(date),
+  /// API: POST /api/appointments
+  /// Exige customerId, serviceId e employeeId — todos UUID. Para criar a
+  /// partir de um telefone, resolver o cliente antes em
+  /// POST /api/customers/resolve.
+  Future<Appointment> create({
+    required String customerId,
+    required String serviceId,
+    required String employeeId,
+    required DateTime startAt,
+    String? notes,
+  }) async {
+    final data = await ctx.api.post('/api/appointments', body: {
+      'customerId': customerId,
       'serviceId': serviceId,
+      'employeeId': employeeId,
+      'startAt': _instant(startAt),
+      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+    });
+    return Appointment.fromJson(_asMap(data));
+  }
+
+  /// API: GET /api/availability?serviceId=&date=&employeeId=&limit=
+  /// Devolve os horários livres calculados pelo motor de agenda do backend,
+  /// já descontando pausas, folgas e horários ocupados.
+  Future<List<DateTime>> availability(
+    DateTime date,
+    String serviceId, {
+    String? employeeId,
+    int limit = 20,
+  }) async {
+    if (ctx.demoMode) return const [];
+    final data = await ctx.api.get('/api/availability', query: {
+      'serviceId': serviceId,
+      'date': _isoDate(date),
+      if (employeeId != null) 'employeeId': employeeId,
+      'limit': limit,
     });
     return _asList(data)
-        .map((e) => DateTime.tryParse((e['startAt'] ?? '').toString())?.toLocal())
+        .map((e) =>
+            DateTime.tryParse((e['startAt'] ?? e['start'] ?? '').toString())
+                ?.toLocal())
         .whereType<DateTime>()
         .toList();
+  }
+}
+
+class CustomerRepository {
+  final RepositoryContext ctx;
+  CustomerRepository(this.ctx);
+
+  /// API: POST /api/customers/resolve
+  /// body { phone, name? } -> acha o cliente pelo telefone ou cria um novo.
+  /// É o primeiro passo do agente antes de marcar qualquer horário.
+  Future<String> resolveByPhone(String phone, {String? name}) async {
+    final data = await ctx.api.post('/api/customers/resolve', body: {
+      'phone': phone.trim(),
+      if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+    });
+    return (_asMap(data)['id'] ?? '').toString();
   }
 }
 
@@ -155,75 +249,99 @@ class ShiftRepository {
   final RepositoryContext ctx;
   ShiftRepository(this.ctx);
 
-  /// API: GET /api/business-hours?date=YYYY-MM-DD
-  /// Traduzir a resposta (dayOfWeek, opensAt, closesAt em minutos) para WorkShift.
+  /// API: GET /api/business
+  /// Devolve o negócio com `hours` (grade semanal), `closedDays` e
+  /// `vacations`. O expediente do dia é derivado disso: procura a faixa do
+  /// dia da semana e checa se a data caiu num dia fechado.
   Future<WorkShift> forDate(DateTime date) async {
     if (ctx.demoMode) return SampleData.shiftFor(date);
-    final data = await ctx.api
-        .get('/api/business-hours', query: {'date': _isoDate(date)});
-    final map = _asMap(data);
-    if (map.isEmpty) return WorkShift.initial(date);
+
+    final data = _asMap(await ctx.api.get('/api/business'));
+    final slot = (data['slotIntervalMinutes'] as num?)?.toInt() ?? 30;
+
+    final closed = (data['closedDays'] as List? ?? const []).any((d) {
+      final raw = (d is Map ? d['date'] : null)?.toString() ?? '';
+      final parsed = DateTime.tryParse(raw)?.toLocal();
+      return parsed != null &&
+          parsed.year == date.year &&
+          parsed.month == date.month &&
+          parsed.day == date.day;
+    });
+
+    final weekday = date.weekday % 7;
+    final today = (data['hours'] as List? ?? const []).cast<dynamic>().firstWhere(
+          (h) => h is Map && (h['dayOfWeek'] as num?)?.toInt() == weekday,
+          orElse: () => null,
+        );
+
+    if (closed || today == null) {
+      return WorkShift.initial(date).copyWith(slotMinutes: slot);
+    }
+
     return WorkShift(
       date: DateTime(date.year, date.month, date.day),
-      state: (map['open'] as bool? ?? false) ? ShiftState.open : ShiftState.closed,
+      state: ShiftState.closed,
       hours: TimeRange(
-        (map['opensAt'] as num?)?.toInt() ?? 9 * 60,
-        (map['closesAt'] as num?)?.toInt() ?? 19 * 60,
+        (today['opensAt'] as num?)?.toInt() ?? 9 * 60,
+        (today['closesAt'] as num?)?.toInt() ?? 19 * 60,
       ),
-      slotMinutes: (map['slotMinutes'] as num?)?.toInt() ?? 30,
+      slotMinutes: slot,
     );
   }
 
-  /// API: PUT /api/business-hours
-  /// Enviado ao abrir o expediente e ao programar o dia seguinte. É o que o
-  /// agente do WhatsApp lê para saber quais horários pode oferecer.
-  Future<void> save(WorkShift shift) async {
+  /// API: PUT /api/business/hours
+  /// body { hours: [{ dayOfWeek, opensAt, closesAt }] }
+  ///
+  /// A grade é SEMANAL, não por data: gravar aqui muda todas as ocorrências
+  /// daquele dia da semana. Para fechar uma data específica use closed-days,
+  /// e para bloquear um intervalo use time-blocks.
+  Future<void> saveWeeklyHours(List<Map<String, int>> hours) async {
     if (ctx.demoMode) return;
-    await ctx.api.put('/api/business-hours', body: {
-      'date': _isoDate(shift.date),
-      'open': shift.state == ShiftState.open,
-      'opensAt': shift.hours.startMinutes,
-      'closesAt': shift.hours.endMinutes,
-      'slotMinutes': shift.slotMinutes,
-      'breaks': shift.breaks
-          .map((b) => {
-                'startsAt': b.range.startMinutes,
-                'endsAt': b.range.endMinutes,
-                'label': b.label,
-              })
-          .toList(),
-      'activeServiceIds': shift.activeServiceIds.toList(),
+    await ctx.api.put('/api/business/hours', body: {'hours': hours});
+  }
+
+  /// API: POST /api/business/closed-days
+  /// body { date, reason? } — é o "amanhã é folga" da tela de Encerrar.
+  Future<void> closeDay(DateTime date, {String? reason}) async {
+    if (ctx.demoMode) return;
+    await ctx.api.post('/api/business/closed-days', body: {
+      'date': _isoDate(date),
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
     });
   }
 
-  /// API: POST /api/shift/open
-  /// Dispara o aviso automático de abertura para os clientes do dia.
-  /// Quem envia a mensagem é a automação (n8n) — o painel só sinaliza.
-  Future<void> openShift(WorkShift shift, {required bool broadcast}) async {
+  /// API: POST /api/time-blocks
+  /// body { startAt, endAt, reason? } — é onde as pausas do dia (almoço,
+  /// café) realmente ficam. Enquanto isto não for chamado, as pausas vivem
+  /// só na memória do painel e o agente não sabe delas.
+  Future<void> addTimeBlock(
+    DateTime startAt,
+    DateTime endAt, {
+    String? reason,
+  }) async {
     if (ctx.demoMode) return;
-    await ctx.api.post('/api/shift/open', body: {
-      'date': _isoDate(shift.date),
-      'opensAt': shift.hours.startMinutes,
-      'closesAt': shift.hours.endMinutes,
-      'slotMinutes': shift.slotMinutes,
-      'notifyCustomers': broadcast,
+    await ctx.api.post('/api/time-blocks', body: {
+      'startAt': _instant(startAt),
+      'endAt': _instant(endAt),
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
     });
   }
 
-  /// API: POST /api/shift/close  body { date, tomorrow: {...} }
-  Future<void> closeShift(WorkShift today, WorkShift? tomorrow) async {
-    if (ctx.demoMode) return;
-    await ctx.api.post('/api/shift/close', body: {
-      'date': _isoDate(today.date),
-      if (tomorrow != null)
-        'tomorrow': {
-          'date': _isoDate(tomorrow.date),
-          'open': tomorrow.state != ShiftState.closed,
-          'opensAt': tomorrow.hours.startMinutes,
-          'closesAt': tomorrow.hours.endMinutes,
-          'slotMinutes': tomorrow.slotMinutes,
-        },
+  /// API: GET /api/time-blocks?from=&to=
+  Future<List<Map<String, dynamic>>> timeBlocks(
+      DateTime from, DateTime to) async {
+    if (ctx.demoMode) return const [];
+    final data = await ctx.api.get('/api/time-blocks', query: {
+      'from': _instant(from),
+      'to': _instant(to),
     });
+    return _asList(data);
+  }
+
+  /// API: DELETE /api/time-blocks/:id
+  Future<void> removeTimeBlock(String id) async {
+    if (ctx.demoMode) return;
+    await ctx.api.delete('/api/time-blocks/$id');
   }
 }
 
@@ -231,14 +349,12 @@ class MetricsRepository {
   final RepositoryContext ctx;
   MetricsRepository(this.ctx);
 
-  /// API: GET /api/metrics?month=YYYY-MM&compareTo=YYYY-MM
+  /// PENDENTE NO BACKEND: não existe rota de métricas hoje.
+  /// Enquanto ela não existir, o painel calcula o mês a partir dos próprios
+  /// agendamentos, em vez de mostrar número inventado.
   Future<DashboardMetrics> monthly(DateTime month, DateTime compareTo) async {
     if (ctx.demoMode) return SampleData.metrics();
-    final data = await ctx.api.get('/api/metrics', query: {
-      'month': _isoMonth(month),
-      'compareTo': _isoMonth(compareTo),
-    });
-    return DashboardMetrics.fromJson(_asMap(data));
+    return const DashboardMetrics();
   }
 }
 
@@ -246,21 +362,33 @@ class SettingsRepository {
   final RepositoryContext ctx;
   SettingsRepository(this.ctx);
 
-  /// API: GET /api/settings — configurações do agente de IA e automações.
+  /// API: GET /api/business
+  /// As configurações do agente moram no próprio negócio, não numa rota
+  /// /settings. Os segredos da Meta (accessToken, appSecret) NÃO voltam nesta
+  /// resposta — o backend usa allowlist de campos — e o painel não deve
+  /// gravá-los tampouco.
   Future<AgentSettings> load() async {
     if (ctx.demoMode) return const AgentSettings();
-    final data = await ctx.api.get('/api/settings');
-    return AgentSettings.fromJson(_asMap(data));
+    final data = _asMap(await ctx.api.get('/api/business'));
+    return AgentSettings(
+      agentPhone: (data['metaPhoneNumberId'] ?? '').toString(),
+      ownerPhone: (data['phone'] ?? '').toString(),
+    );
   }
 
-  /// API: PUT /api/settings
-  /// A automação do n8n lê estas flags para decidir o comportamento do bot:
-  /// enviar lembrete, cobrar antecipado, oferecer upsell, gravar no Google
-  /// Agenda e aceitar comandos por voz do dono.
+  /// API: PATCH /api/business
+  /// Só envia o que o backend aceita hoje. As demais chaves da tela
+  /// (lembrete, pagamento antecipado, upsell, Google Agenda, assistentes de
+  /// voz) ainda não têm campo correspondente — ver FUNCIONALIDADES.md.
   Future<AgentSettings> save(AgentSettings settings) async {
     if (ctx.demoMode) return settings;
-    final data = await ctx.api.put('/api/settings', body: settings.toJson());
-    return AgentSettings.fromJson(_asMap(data));
+    final body = <String, dynamic>{};
+    if (settings.ownerPhone.trim().isNotEmpty) {
+      body['phone'] = settings.ownerPhone.trim();
+    }
+    if (body.isEmpty) return settings;
+    await ctx.api.patch('/api/business', body: body);
+    return settings;
   }
 }
 
@@ -287,5 +415,5 @@ List<Map<String, dynamic>> _asList(dynamic data) {
 String _isoDate(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-String _isoMonth(DateTime d) =>
-    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}';
+/// A API exige ISO-8601 com fuso. `toUtc().toIso8601String()` já sai com Z.
+String _instant(DateTime d) => d.toUtc().toIso8601String();

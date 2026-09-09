@@ -362,6 +362,27 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Grava a janela do dia como a faixa semanal daquele dia da semana, que é
+  /// como o backend guarda horário. Abrir/encerrar em si é estado de tela: a
+  /// API ainda não tem o conceito de expediente do dia.
+  Future<void> _persistHours(WorkShift shift) async {
+    await shifts.saveWeeklyHours([
+      {
+        'dayOfWeek': shift.date.weekday % 7,
+        'opensAt': shift.hours.startMinutes,
+        'closesAt': shift.hours.endMinutes,
+      },
+    ]);
+    for (final b in shift.breaks) {
+      final day = shift.date;
+      await shifts.addTimeBlock(
+        day.add(Duration(minutes: b.range.startMinutes)),
+        day.add(Duration(minutes: b.range.endMinutes)),
+        reason: b.label,
+      );
+    }
+  }
+
   Future<String?> openShift() async {
     final blocked = openBlockReason;
     if (blocked != null) return blocked;
@@ -372,8 +393,7 @@ class AppState extends ChangeNotifier {
     _shift = next;
     notifyListeners();
     try {
-      await shifts.save(next);
-      await shifts.openShift(next, broadcast: _settings.openingBroadcast);
+      await _persistHours(next);
       return null;
     } on ApiException catch (e) {
       _shift = next.copyWith(state: ShiftState.closed);
@@ -392,7 +412,13 @@ class AppState extends ChangeNotifier {
     _tomorrowPlan = tomorrow;
     notifyListeners();
     try {
-      await shifts.closeShift(next, tomorrow);
+      if (tomorrow != null) {
+        if (tomorrow.state == ShiftState.closed) {
+          await shifts.closeDay(tomorrow.date, reason: 'Folga');
+        } else {
+          await _persistHours(tomorrow);
+        }
+      }
       return null;
     } on ApiException catch (e) {
       _shift = previous;
@@ -407,7 +433,7 @@ class AppState extends ChangeNotifier {
     _shift = next;
     notifyListeners();
     try {
-      await shifts.save(next);
+      await _persistHours(next);
       return null;
     } on ApiException catch (e) {
       _shift = previous;

@@ -7,7 +7,7 @@ import '../../theme/tokens.dart';
 import '../components/buttons.dart';
 import '../components/inputs.dart';
 import '../components/primitives.dart';
-import '../brand/light_rays.dart';
+import '../brand/circuit_backdrop.dart';
 import '../brand/logo.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -61,30 +61,50 @@ class _LoginScreenState extends State<LoginScreen> {
     final c = context.colors;
     final wide = Responsive.width(context) >= 940;
 
-    return Scaffold(
-      backgroundColor: c.bg,
-      body: SafeArea(
-        child: wide
-            ? Row(
-                children: [
-                  const Expanded(flex: 5, child: _BrandPanel()),
-                  Expanded(
-                    flex: 4,
-                    child: Center(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(Space.xxxl),
-                        child: _form(context),
-                      ),
-                    ),
+    if (wide) {
+      return Scaffold(
+        backgroundColor: c.bg,
+        body: SafeArea(
+          child: Row(
+            children: [
+              const Expanded(flex: 5, child: _BrandPanel()),
+              Expanded(
+                flex: 4,
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(Space.xxxl),
+                    child: _form(context),
                   ),
-                ],
-              )
-            : Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(Space.xl),
-                  child: _form(context, compact: true),
                 ),
               ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // No celular o fundo animado fica atrás do formulário inteiro — antes não
+    // existia animação nenhuma nesta largura.
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: CircuitBackdrop(subdued: true)),
+          const Positioned.fill(
+            child: BackdropScrim(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(Space.xl),
+                child: _form(context, compact: true),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -255,7 +275,8 @@ class _BrandPanel extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          const Positioned.fill(child: LightRaysBackdrop()),
+          const Positioned.fill(child: CircuitBackdrop()),
+          const Positioned.fill(child: BackdropScrim()),
           Padding(
             padding: const EdgeInsets.all(Space.xxxl),
             child: Column(

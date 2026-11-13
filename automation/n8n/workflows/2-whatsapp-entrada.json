@@ -1,0 +1,360 @@
+{
+  "id": "cvxWhatsappIn001",
+  "name": "Convexa · WhatsApp (entrada)",
+  "nodes": [
+    {
+      "id": "meta-confirma-o-webhook-get--10",
+      "name": "Meta confirma o webhook (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        -200
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "whatsapp-get"
+    },
+    {
+      "id": "token-confere--11",
+      "name": "Token confere?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        240,
+        -200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "v1",
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "={{ $env.WHATSAPP_VERIFY_TOKEN }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "devolver-desafio-12",
+      "name": "Devolver desafio",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        480,
+        -280
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "recusar-13",
+      "name": "Recusar",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        480,
+        -120
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "token inválido",
+        "options": {
+          "responseCode": 403
+        }
+      }
+    },
+    {
+      "id": "mensagem-da-meta-post--14",
+      "name": "Mensagem da Meta (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "responseMode": "onReceived",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "whatsapp-post"
+    },
+    {
+      "id": "preparar-15",
+      "name": "Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Corpo cru (para conferir a assinatura da Meta) e mídias a baixar\nconst item = $input.first();\nlet rawBody;\nif (item.binary?.data) {\n  rawBody = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8');\n} else {\n  rawBody = JSON.stringify(item.json.body);\n}\nconst payload = JSON.parse(rawBody);\nconst mediaIds = [];\nlet phoneNumberId = null;\nfor (const e of payload.entry ?? []) for (const ch of e.changes ?? []) {\n  phoneNumberId = ch.value?.metadata?.phone_number_id ?? phoneNumberId;\n  for (const m of ch.value?.messages ?? []) {\n    const media = m.image ?? m.document;\n    if (media?.id) mediaIds.push(media.id);\n  }\n}\nconst h = item.json.headers ?? {};\nreturn [{ json: { rawBody, signature: h['x-hub-signature-256'] ?? null, phoneNumberId, mediaIds, hasMessages: (rawBody.includes('\"messages\"')) } }];"
+      }
+    },
+    {
+      "id": "tem-foto-arquivo--16",
+      "name": "Tem foto/arquivo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        480,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "m1",
+              "leftValue": "={{ $json.mediaIds.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "token-da-meta-m-dia--17",
+      "name": "Token da Meta (mídia)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CONVEXA_API_URL }}/internal/integrations/by-phone-number-id/{{ $json.phoneNumberId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cvxInternalKey01",
+          "name": "Convexa API (chave interna)"
+        }
+      }
+    },
+    {
+      "id": "baixar-m-dia-18",
+      "name": "Baixar mídia",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Comprovante do cliente: pega a URL na Graph API e baixa o arquivo (até 10 MB)\nconst prep = $('Preparar').first().json;\nconst token = $input.first().json.metaAccessToken;\nconst media = {};\nfor (const id of prep.mediaIds) {\n  const info = await this.helpers.httpRequest({ method: 'GET', url: `${$env.GRAPH_API_BASE}/${$env.GRAPH_API_VERSION}/${id}`, headers: { Authorization: 'Bearer ' + token }, json: true });\n  if ((info.file_size ?? 0) > 10 * 1024 * 1024) continue;\n  const file = await this.helpers.httpRequest({ method: 'GET', url: info.url, headers: { Authorization: 'Bearer ' + token }, encoding: 'arraybuffer' });\n  media[id] = { mimeType: info.mime_type, base64: Buffer.from(file).toString('base64') };\n}\nreturn [{ json: { ...prep, media } }];"
+      }
+    },
+    {
+      "id": "c-rebro-convexa-automacao--19",
+      "name": "Cérebro (convexa-automacao)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTOMACAO_URL }}/v1/whatsapp/inbound",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ payload: null, rawBody: $json.rawBody, signature: $json.signature, media: $json.media ?? {} }) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cvxAutomacaoKey1",
+          "name": "Convexa Automação (chave)"
+        }
+      }
+    },
+    {
+      "id": "enviar-respostas-20",
+      "name": "Enviar respostas",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        1440,
+        100
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "cvxEnviarLote001"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Meta confirma o webhook (GET)": {
+      "main": [
+        [
+          {
+            "node": "Token confere?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token confere?": {
+      "main": [
+        [
+          {
+            "node": "Devolver desafio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recusar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem da Meta (POST)": {
+      "main": [
+        [
+          {
+            "node": "Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar": {
+      "main": [
+        [
+          {
+            "node": "Tem foto/arquivo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem foto/arquivo?": {
+      "main": [
+        [
+          {
+            "node": "Token da Meta (mídia)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cérebro (convexa-automacao)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token da Meta (mídia)": {
+      "main": [
+        [
+          {
+            "node": "Baixar mídia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar mídia": {
+      "main": [
+        [
+          {
+            "node": "Cérebro (convexa-automacao)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cérebro (convexa-automacao)": {
+      "main": [
+        [
+          {
+            "node": "Enviar respostas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false
+}

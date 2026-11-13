@@ -1,0 +1,158 @@
+{
+  "id": "cvxAlexa00000001",
+  "name": "Convexa · Alexa (dono)",
+  "nodes": [
+    {
+      "id": "pedido-da-alexa-25",
+      "name": "Pedido da Alexa",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "alexa",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "alexa"
+    },
+    {
+      "id": "preparar-corpo-cru-e-assinatura--26",
+      "name": "Preparar (corpo cru e assinatura)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const item = $input.first();\nconst rawBody = item.binary?.data ? (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8') : JSON.stringify(item.json.body);\nconst h = item.json.headers ?? {};\nreturn [{ json: { rawBody, signature: h['signature-256'] ?? h['signature'] ?? null, certUrl: h['signaturecertchainurl'] ?? null } }];"
+      }
+    },
+    {
+      "id": "c-rebro-alexa--27",
+      "name": "Cérebro (Alexa)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTOMACAO_URL }}/v1/alexa",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 7000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cvxAutomacaoKey1",
+          "name": "Convexa Automação (chave)"
+        }
+      }
+    },
+    {
+      "id": "responder-alexa-28",
+      "name": "Responder à Alexa",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.alexa) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "enviar-avisos-pedidos-por-voz-29",
+      "name": "Enviar avisos pedidos por voz",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "cvxEnviarLote001"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Pedido da Alexa": {
+      "main": [
+        [
+          {
+            "node": "Preparar (corpo cru e assinatura)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar (corpo cru e assinatura)": {
+      "main": [
+        [
+          {
+            "node": "Cérebro (Alexa)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cérebro (Alexa)": {
+      "main": [
+        [
+          {
+            "node": "Responder à Alexa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder à Alexa": {
+      "main": [
+        [
+          {
+            "node": "Enviar avisos pedidos por voz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false
+}

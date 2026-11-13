@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador de WhatsApp — Convexa</title>
+<style>
+  :root{--bg:#f4f5f6;--panel:#fff;--ink:#1d2125;--ink2:#5b636b;--line:#e3e6e9;--bot:#fff;--me:#e9ecef;--accent:#2f3439;--chip:#f1f3f5;--warn:#8a6d1c}
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);height:100vh;display:flex}
+  aside{width:300px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+  aside header{padding:16px;border-bottom:1px solid var(--line)}
+  aside h1{font-size:15px;margin:0 0 2px}
+  aside small{color:var(--ink2)}
+  .contacts{flex:1;overflow:auto}
+  .contact{padding:12px 16px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;gap:10px;align-items:center}
+  .contact:hover{background:#fafbfb}.contact.active{background:#eef0f2}
+  .avatar{width:36px;height:36px;border-radius:50%;background:#dfe3e7;display:grid;place-items:center;font-weight:600;color:#3b4148;flex:none}
+  .contact .meta{min-width:0}.contact .meta b{display:block;font-size:14px}.contact .meta span{display:block;color:var(--ink2);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .add{padding:12px 16px;display:grid;gap:8px;border-top:1px solid var(--line)}
+  .add input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  .row{display:flex;gap:8px}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 12px}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  main{flex:1;display:flex;flex-direction:column;min-width:0}
+  main header{padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  main header .who b{display:block}.who span{color:var(--ink2);font-size:12.5px}
+  .log{flex:1;overflow:auto;padding:20px 16px;display:flex;flex-direction:column;gap:8px}
+  .msg{max-width:min(520px,86%);padding:8px 12px;border-radius:10px;box-shadow:0 1px 0 rgba(0,0,0,.04);white-space:pre-wrap;word-wrap:break-word}
+  .msg.bot{align-self:flex-start;background:var(--bot);border:1px solid var(--line)}
+  .msg.user{align-self:flex-end;background:var(--me)}
+  .msg .hdr{font-weight:600;margin-bottom:4px}.msg .ftr{color:var(--ink2);font-size:12.5px;margin-top:4px}
+  .msg .tag{font-size:11px;color:var(--warn);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+  .msg time{display:block;font-size:11px;color:var(--ink2);text-align:right;margin-top:2px}
+  .msg img{max-width:240px;border-radius:8px;display:block;margin-bottom:4px;background:#fff}
+  .btns{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .btns button{width:100%;text-align:center;background:var(--chip);border-color:transparent;font-weight:500}
+  .btns button:disabled{opacity:.55;cursor:default}
+  .composer{display:flex;gap:8px;padding:12px;background:var(--panel);border-top:1px solid var(--line)}
+  .composer input[type=text]{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:20px;font:inherit;min-width:0}
+  .sheet{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;align-items:flex-end;justify-content:center}
+  .sheet.open{display:flex}
+  .sheet .box{background:var(--panel);width:min(480px,100%);max-height:75vh;overflow:auto;border-radius:14px 14px 0 0;padding:8px 0 16px}
+  .sheet h3{font-size:13px;color:var(--ink2);margin:14px 18px 6px;text-transform:uppercase;letter-spacing:.04em}
+  .sheet .opt{padding:10px 18px;cursor:pointer;border-bottom:1px solid var(--line)}
+  .sheet .opt:hover{background:#f6f7f8}.sheet .opt b{display:block;font-weight:500}.sheet .opt span{color:var(--ink2);font-size:13px}
+  .empty{margin:auto;color:var(--ink2);text-align:center;max-width:360px}
+  .err{color:#a33;font-size:13px;padding:0 16px 8px}
+  @media (max-width:760px){aside{display:none}body.list aside{display:flex;width:100%}body.list main{display:none}#back{display:inline-block!important}}
+</style>
+</head>
+<body class="list">
+<aside>
+  <header><h1>Simulador de WhatsApp</h1><small id="biz">Convexa</small></header>
+  <div class="contacts" id="contacts"></div>
+  <div class="add">
+    <input id="newName" placeholder="Nome (ex.: Ana Paula)">
+    <div class="row"><input id="newPhone" placeholder="Telefone com DDI (5514988887777)"></div>
+    <div class="row"><button class="primary" id="addBtn">Nova conversa</button><button id="ownerBtn">Sou o dono</button></div>
+  </div>
+</aside>
+<main>
+  <header>
+    <button id="back" style="display:none">←</button>
+    <div class="who" id="who"><b>Escolha uma conversa</b><span>ou crie uma ao lado</span></div>
+    <button id="resetBtn" title="Apagar conversas do simulador">Limpar</button>
+  </header>
+  <div class="log" id="log"><div class="empty">As mensagens vão para o n8n exatamente como a Meta mandaria, com assinatura. As respostas do bot chegam aqui.</div></div>
+  <div class="err" id="err"></div>
+  <form class="composer" id="form">
+    <label><input type="file" id="file" accept="image/*" hidden><button type="button" id="attach" title="Enviar foto">📎</button></label>
+    <input type="text" id="text" placeholder="Mensagem" autocomplete="off">
+    <button class="primary">Enviar</button>
+  </form>
+</main>
+<div class="sheet" id="sheet"><div class="box" id="sheetBox"></div></div>
+<script>
+const OWNER = { waId: "5514999990000", name: "Rafael (dono)" };
+let current = null, chats = [];
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (s) => esc(s).replace(/\*(.+?)\*/g, "<b>$1</b>").replace(/_(.+?)_/g, "<i>$1</i>");
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || r.status);
+  return data;
+}
+async function loadChats() {
+  chats = await api("/api/chats");
+  $("contacts").innerHTML = chats.map((c) => `<div class="contact ${current?.waId === c.waId ? "active" : ""}" data-id="${c.waId}" data-name="${esc(c.name)}">
+    <div class="avatar">${esc((c.name || "?")[0]).toUpperCase()}</div>
+    <div class="meta"><b>${esc(c.name)}</b><span>${esc(c.last?.text ?? "")}</span></div></div>`).join("") || `<div class="empty" style="padding:24px">Nenhuma conversa ainda.</div>`;
+  for (const el of document.querySelectorAll(".contact")) el.onclick = () => open({ waId: el.dataset.id, name: el.dataset.name });
+}
+async function open(c) {
+  current = c;
+  document.body.classList.remove("list");
+  $("who").innerHTML = `<b>${esc(c.name)}</b><span>+${esc(c.waId)}</span>`;
+  const msgs = await api(`/api/messages?waId=${c.waId}`);
+  $("log").innerHTML = "";
+  msgs.forEach(draw);
+  loadChats();
+}
+function draw(m) {
+  const el = document.createElement("div");
+  el.className = `msg ${m.from}`;
+  const time = new Date(m.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  let html = "";
+  if (m.kind === "template") html += `<div class="tag">Template · ${esc(m.template)}</div>`;
+  if (m.header) html += `<div class="hdr">${esc(m.header)}</div>`;
+  if (m.kind === "image") html += `<img src="${esc(m.link)}" alt="imagem">`;
+  html += fmt(m.text);
+  if (m.footer) html += `<div class="ftr">${esc(m.footer)}</div>`;
+  html += `<time>${time}</time>`;
+  el.innerHTML = html;
+  if (m.from === "bot" && (m.kind === "buttons" || m.kind === "template") && m.buttons?.length) {
+    const box = document.createElement("div");
+    box.className = "btns";
+    for (const b of m.buttons) {
+      const btn = document.createElement("button");
+      btn.textContent = b.title;
+      btn.onclick = () => reply(b.id, b.title, m.kind === "template" ? "template" : "button");
+      box.appendChild(btn);
+    }
+    el.appendChild(box);
+  }
+  if (m.from === "bot" && m.kind === "list") {
+    const box = document.createElement("div");
+    box.className = "btns";
+    const btn = document.createElement("button");
+    btn.textContent = "☰ " + m.button;
+    btn.onclick = () => sheet(m);
+    box.appendChild(btn);
+    el.appendChild(box);
+  }
+  $("log").appendChild(el);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+function sheet(m) {
+  $("sheetBox").innerHTML = m.sections.map((s) => `${s.title ? `<h3>${esc(s.title)}</h3>` : ""}${s.rows.map((r) => `<div class="opt" data-id="${esc(r.id)}" data-title="${esc(r.title)}"><b>${esc(r.title)}</b>${r.description ? `<span>${esc(r.description)}</span>` : ""}</div>`).join("")}`).join("");
+  $("sheet").classList.add("open");
+  for (const o of document.querySelectorAll(".opt")) o.onclick = () => { $("sheet").classList.remove("open"); reply(o.dataset.id, o.dataset.title, "list"); };
+}
+$("sheet").onclick = (e) => { if (e.target.id === "sheet") $("sheet").classList.remove("open"); };
+async function send(body) {
+  if (!current) return;
+  $("err").textContent = "";
+  try { await api("/api/send", { waId: current.waId, name: current.name, ...body }); }
+  catch (e) { $("err").textContent = "Não chegou no n8n: " + e.message; }
+}
+const reply = (replyId, title, kind) => send({ replyId, title, kind });
+$("form").onsubmit = (e) => { e.preventDefault(); const t = $("text").value.trim(); if (t) { $("text").value = ""; send({ text: t }); } };
+$("attach").onclick = () => $("file").click();
+$("file").onchange = () => { const f = $("file").files[0]; if (!f) return; const r = new FileReader(); r.onload = () => send({ image: r.result }); r.readAsDataURL(f); $("file").value = ""; };
+$("addBtn").onclick = () => { const p = $("newPhone").value.replace(/\D/g, ""); if (p.length < 12) return alert("Telefone com DDI e DDD, ex.: 5514988887777"); open({ waId: p, name: $("newName").value.trim() || p }); };
+$("ownerBtn").onclick = () => open(OWNER);
+$("resetBtn").onclick = async () => { if (confirm("Apagar as conversas do simulador?")) { await api("/api/reset", {}); $("log").innerHTML = ""; loadChats(); } };
+$("back").onclick = () => document.body.classList.add("list");
+const es = new EventSource("/events");
+es.onmessage = (e) => { const { waId, message } = JSON.parse(e.data); if (current?.waId === waId) draw(message); loadChats(); };
+api("/api/config").then((c) => { $("biz").textContent = c.businessName + " · +" + c.displayPhone; });
+loadChats();
+</script>
+</body>
+</html>

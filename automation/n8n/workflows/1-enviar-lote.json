@@ -1,0 +1,305 @@
+{
+  "id": "cvxEnviarLote001",
+  "name": "Convexa · Enviar mensagens (lote)",
+  "nodes": [
+    {
+      "id": "chamado-por-outro-workflow-1",
+      "name": "Chamado por outro workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "lote-vindo-do-servi-o-2",
+      "name": "Lote vindo do serviço",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        220
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "convexa-enviar",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "convexa-enviar",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cvxAutomacaoKey1",
+          "name": "Convexa Automação (chave)"
+        }
+      }
+    },
+    {
+      "id": "achatar-mensagens-3",
+      "name": "Achatar mensagens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Recebe { batches: [{ phoneNumberId, messages: [{ to, graph, preview }] }] } e devolve uma mensagem por item, na ordem.\nconst out = [];\nfor (const item of $input.all()) {\n  const src = item.json.batches ? item.json : (item.json.body ?? {});\n  for (const b of src.batches ?? []) {\n    for (const m of b.messages ?? []) out.push({ json: { phoneNumberId: b.phoneNumberId, to: m.to, graph: m.graph, preview: m.preview } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "consumir-cota-4",
+      "name": "Consumir cota",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        500,
+        100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CONVEXA_API_URL }}/internal/messages/quota",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phoneNumberId: $json.phoneNumberId, count: 1 }) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cvxInternalKey01",
+          "name": "Convexa API (chave interna)"
+        }
+      }
+    },
+    {
+      "id": "dentro-da-cota--5",
+      "name": "Dentro da cota?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        740,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "q1",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 300,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "token-da-meta-6",
+      "name": "Token da Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        980,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CONVEXA_API_URL }}/internal/integrations/by-phone-number-id/{{ $('Achatar mensagens').item.json.phoneNumberId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cvxInternalKey01",
+          "name": "Convexa API (chave interna)"
+        }
+      }
+    },
+    {
+      "id": "enviar-pela-meta-7",
+      "name": "Enviar pela Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1220,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GRAPH_API_BASE }}/{{ $env.GRAPH_API_VERSION }}/{{ $('Achatar mensagens').item.json.phoneNumberId }}/messages",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify({ Authorization: \"Bearer \" + $json.metaAccessToken }) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Achatar mensagens').item.json.graph) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 600
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "resultado-do-envio-8",
+      "name": "Resultado do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().map((item, i) => {\n  const msg = $('Achatar mensagens').all()[i]?.json ?? {};\n  const ok = item.json.statusCode >= 200 && item.json.statusCode < 300;\n  return { json: { ok, to: msg.to, preview: (msg.preview ?? '').slice(0, 80), status: item.json.statusCode, erro: ok ? undefined : item.json.body } };\n});"
+      }
+    },
+    {
+      "id": "cota-estourada-n-o-envia--9",
+      "name": "Cota estourada (não envia)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        980,
+        220
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Chamado por outro workflow": {
+      "main": [
+        [
+          {
+            "node": "Achatar mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lote vindo do serviço": {
+      "main": [
+        [
+          {
+            "node": "Achatar mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Achatar mensagens": {
+      "main": [
+        [
+          {
+            "node": "Consumir cota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consumir cota": {
+      "main": [
+        [
+          {
+            "node": "Dentro da cota?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dentro da cota?": {
+      "main": [
+        [
+          {
+            "node": "Token da Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cota estourada (não envia)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token da Meta": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar pela Meta": {
+      "main": [
+        [
+          {
+            "node": "Resultado do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false
+}

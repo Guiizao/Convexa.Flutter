@@ -1,0 +1,104 @@
+{
+  "id": "cvxMercadoPago01",
+  "name": "Convexa · Mercado Pago (Pix pago)",
+  "nodes": [
+    {
+      "id": "aviso-do-mercado-pago-30",
+      "name": "Aviso do Mercado Pago",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mercadopago/:businessId",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "mercadopago"
+    },
+    {
+      "id": "c-rebro-confirmar-pix--31",
+      "name": "Cérebro (confirmar Pix)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AUTOMACAO_URL }}/v1/webhooks/mercadopago",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ businessId: $json.params.businessId, query: $json.query, body: $json.body, signature: $json.headers['x-signature'] ?? null, requestId: $json.headers['x-request-id'] ?? null }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cvxAutomacaoKey1",
+          "name": "Convexa Automação (chave)"
+        }
+      }
+    },
+    {
+      "id": "avisar-cliente-e-dono-32",
+      "name": "Avisar cliente e dono",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "cvxEnviarLote001"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Aviso do Mercado Pago": {
+      "main": [
+        [
+          {
+            "node": "Cérebro (confirmar Pix)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cérebro (confirmar Pix)": {
+      "main": [
+        [
+          {
+            "node": "Avisar cliente e dono",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false
+}

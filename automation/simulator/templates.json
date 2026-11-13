@@ -1,0 +1,30 @@
+{
+  "convexa_lembrete": {
+    "body": "Olá, {{1}}! Lembrete do seu horário na {{2}}: {{3}}, {{4}} às {{5}}, com {{6}}. Você confirma?",
+    "buttons": ["Confirmo", "Remarcar", "Cancelar"]
+  },
+  "convexa_remarcacao": {
+    "body": "Olá, {{1}}. A {{2}} precisou ajustar a agenda de {{3}} e o seu horário das {{4}} não poderá ser mantido. Pedimos desculpas! Toque em Escolher horário para remarcar.",
+    "buttons": ["Escolher horário", "Cancelar"]
+  },
+  "convexa_aviso": {
+    "body": "Olá, {{1}}. Aviso da {{2}} sobre o seu horário de {{3}}: {{4}}",
+    "buttons": ["Ok, entendi", "Remarcar"]
+  },
+  "convexa_pagamento_confirmado": {
+    "body": "Pagamento recebido! Seu horário de {{1}} em {{2}} às {{3}} na {{4}} está confirmado.",
+    "buttons": []
+  },
+  "convexa_sinal_expirado": {
+    "body": "O prazo do sinal acabou e o seu horário de {{1}} ({{2}}) na {{3}} foi liberado. Se ainda quiser, toque em Agendar de novo.",
+    "buttons": ["Agendar de novo"]
+  },
+  "convexa_aviso_dono": {
+    "body": "Novidade na agenda da {{1}}: {{2}}",
+    "buttons": ["Abrir menu"]
+  },
+  "convexa_comprovante": {
+    "body": "{{1}} enviou um comprovante de {{2}} referente a {{3}}. Confira na sua conta antes de aprovar.",
+    "buttons": ["Aprovar", "Recusar"]
+  }
+}

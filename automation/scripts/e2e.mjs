@@ -60,6 +60,30 @@ async function step(title, fn) {
 
 const cliente = { waId: `55149${rnd()}${rnd()}`, name: "Paula Teste" };
 
+// Rodadas anteriores deixam bloqueios do dono ("Compromisso do dono") na agenda da
+// empresa de demonstração; sem limpar, o horário do teste fica ocupado.
+async function limparBloqueiosDoTeste() {
+  const API = process.env.API_URL ?? "http://localhost:3000";
+  const login = await fetch(`${API}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: process.env.DEMO_EMAIL ?? "dono@navalha.demo", password: process.env.DEMO_PASSWORD ?? "Navalha#2026demo" }),
+  }).then((r) => r.json());
+  const token = login.accessToken ?? login.data?.accessToken;
+  if (!token) return console.log("  (não consegui entrar para limpar bloqueios antigos)");
+  const auth = { Authorization: `Bearer ${token}` };
+  const res = await fetch(`${API}/api/time-blocks?from=${new Date().toISOString()}`, { headers: auth }).then((r) => r.json());
+  const blocks = Array.isArray(res) ? res : res.data ?? [];
+  let n = 0;
+  for (const b of blocks) {
+    if (!/(Bloqueado pelo|Compromisso do) dono/.test(b.reason ?? "")) continue;
+    await fetch(`${API}/api/time-blocks/${b.id}`, { method: "DELETE", headers: auth });
+    n++;
+  }
+  console.log(`(limpeza: ${n} bloqueio(s) de rodadas anteriores removido(s))`);
+}
+await limparBloqueiosDoTeste();
+
 await step("Cliente agenda por texto livre (serviço + dia + hora numa frase)", async () => {
   let r = await talk(cliente, { text: "oi! queria marcar barba quinta às 16h" });
   if (/preferência/i.test(text(r))) r = await talk(cliente, button(r, /Sem preferência/));

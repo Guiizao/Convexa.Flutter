@@ -40,3 +40,16 @@ describe("descrição do Pix", () => {
     expect(inner["02"]).toBe("Sinal Barba sab 14 11 0930");
   });
 });
+
+import { createHmac } from "node:crypto";
+import { verifyWebhook } from "../src/payments/mercadopago.js";
+describe("webhook do Mercado Pago", () => {
+  it("confere x-signature no formato documentado", () => {
+    const secret = "segredo-de-teste";
+    const ts = "1704908010";
+    const v1 = createHmac("sha256", secret).update(`id:123456;request-id:req-1;ts:${ts};`).digest("hex");
+    expect(verifyWebhook(secret, { signature: `ts=${ts},v1=${v1}`, requestId: "req-1" }, "123456")).toBe(true);
+    expect(verifyWebhook(secret, { signature: `ts=${ts},v1=${v1}`, requestId: "req-2" }, "123456")).toBe(false);
+    expect(verifyWebhook(secret, {}, "123456")).toBe(false);
+  });
+});

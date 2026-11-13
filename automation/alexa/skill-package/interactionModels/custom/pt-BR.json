@@ -1,0 +1,324 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "agenda convexa",
+      "intents": [
+        {
+          "name": "VincularIntent",
+          "slots": [
+            {
+              "name": "codigo",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "vincular código {codigo}",
+            "vincular com o código {codigo}",
+            "vincula o código {codigo}",
+            "o código é {codigo}",
+            "meu código é {codigo}",
+            "conectar código {codigo}",
+            "código {codigo}"
+          ]
+        },
+        {
+          "name": "AgendaIntent",
+          "slots": [
+            {
+              "name": "dia",
+              "type": "AMAZON.DATE"
+            }
+          ],
+          "samples": [
+            "qual a minha agenda",
+            "qual é a minha agenda {dia}",
+            "qual a agenda de {dia}",
+            "como está a agenda {dia}",
+            "como está minha agenda {dia}",
+            "o que eu tenho {dia}",
+            "o que tenho {dia}",
+            "o que eu tenho para {dia}",
+            "quem vem {dia}",
+            "quem está marcado {dia}",
+            "quantos clientes eu tenho {dia}",
+            "quantos clientes tenho {dia}",
+            "quantos atendimentos eu tenho {dia}",
+            "me fala a agenda de {dia}",
+            "lê a minha agenda {dia}",
+            "agenda de {dia}",
+            "minha agenda {dia}",
+            "quais os agendamentos de {dia}",
+            "quais são os horários marcados {dia}"
+          ]
+        },
+        {
+          "name": "ProximoClienteIntent",
+          "slots": [],
+          "samples": [
+            "quem é o próximo cliente",
+            "quem é o próximo",
+            "qual o próximo cliente",
+            "qual é o próximo atendimento",
+            "quem vem agora",
+            "quem é o próximo da fila",
+            "próximo cliente",
+            "qual o próximo horário"
+          ]
+        },
+        {
+          "name": "HorariosLivresIntent",
+          "slots": [
+            {
+              "name": "dia",
+              "type": "AMAZON.DATE"
+            }
+          ],
+          "samples": [
+            "quais horários estão livres {dia}",
+            "quais os horários livres de {dia}",
+            "tenho horário livre {dia}",
+            "tenho horário vago {dia}",
+            "tem vaga {dia}",
+            "onde tem buraco na agenda {dia}",
+            "quais horários vagos {dia}",
+            "horários livres {dia}",
+            "horários disponíveis {dia}",
+            "ainda tenho horário {dia}",
+            "consigo encaixar alguém {dia}"
+          ]
+        },
+        {
+          "name": "FaturamentoIntent",
+          "slots": [
+            {
+              "name": "periodo",
+              "type": "AMAZON.DATE"
+            }
+          ],
+          "samples": [
+            "quanto eu faturei {periodo}",
+            "quanto faturei {periodo}",
+            "qual o faturamento {periodo}",
+            "qual foi o faturamento de {periodo}",
+            "quanto entrou {periodo}",
+            "quanto eu ganhei {periodo}",
+            "quanto eu fiz {periodo}",
+            "qual a receita {periodo}",
+            "como estão as vendas {periodo}",
+            "faturamento de {periodo}",
+            "faturamento do mês",
+            "quanto eu faturei"
+          ]
+        },
+        {
+          "name": "LucroIntent",
+          "slots": [
+            {
+              "name": "periodo",
+              "type": "AMAZON.DATE"
+            }
+          ],
+          "samples": [
+            "qual o lucro {periodo}",
+            "qual foi o lucro de {periodo}",
+            "quanto eu lucrei {periodo}",
+            "quanto lucrei {periodo}",
+            "qual o meu lucro {periodo}",
+            "lucro de {periodo}",
+            "lucro do mês",
+            "qual o lucro"
+          ]
+        },
+        {
+          "name": "BloquearIntent",
+          "slots": [
+            {
+              "name": "dia",
+              "type": "AMAZON.DATE"
+            },
+            {
+              "name": "inicio",
+              "type": "AMAZON.TIME"
+            },
+            {
+              "name": "fim",
+              "type": "AMAZON.TIME"
+            }
+          ],
+          "samples": [
+            "bloqueia {dia} das {inicio} às {fim}",
+            "bloquear {dia} das {inicio} às {fim}",
+            "bloqueia a agenda {dia} das {inicio} às {fim}",
+            "vou estar ocupado {dia} das {inicio} às {fim}",
+            "vou estar ocupada {dia} das {inicio} às {fim}",
+            "tenho um compromisso {dia} das {inicio} às {fim}",
+            "não vou atender {dia} das {inicio} às {fim}",
+            "fecha a agenda {dia} das {inicio} às {fim}",
+            "reserva {dia} das {inicio} até {fim}",
+            "bloqueia das {inicio} às {fim} {dia}",
+            "{dia} das {inicio} às {fim} vou estar ocupado"
+          ]
+        },
+        {
+          "name": "SairMaisCedoIntent",
+          "slots": [
+            {
+              "name": "dia",
+              "type": "AMAZON.DATE"
+            },
+            {
+              "name": "hora",
+              "type": "AMAZON.TIME"
+            }
+          ],
+          "samples": [
+            "vou sair mais cedo às {hora}",
+            "hoje vou sair às {hora}",
+            "vou embora às {hora}",
+            "{dia} vou sair às {hora}",
+            "{dia} vou sair mais cedo às {hora}",
+            "vou fechar às {hora}",
+            "{dia} vou fechar às {hora}",
+            "vou encerrar às {hora}"
+          ]
+        },
+        {
+          "name": "ChegarMaisTardeIntent",
+          "slots": [
+            {
+              "name": "dia",
+              "type": "AMAZON.DATE"
+            },
+            {
+              "name": "hora",
+              "type": "AMAZON.TIME"
+            }
+          ],
+          "samples": [
+            "vou chegar às {hora}",
+            "{dia} só chego às {hora}",
+            "{dia} vou chegar mais tarde às {hora}",
+            "{dia} vou começar às {hora}",
+            "vou abrir às {hora}",
+            "{dia} vou abrir às {hora}"
+          ]
+        },
+        {
+          "name": "AvisarClientesIntent",
+          "slots": [
+            {
+              "name": "mensagem",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "avisa meus clientes de hoje que {mensagem}",
+            "avise meus clientes de hoje que {mensagem}",
+            "manda uma mensagem para os clientes de hoje dizendo que {mensagem}",
+            "fala para os clientes de hoje que {mensagem}",
+            "avisa quem está marcado hoje que {mensagem}",
+            "avisa os clientes que {mensagem}"
+          ]
+        },
+        {
+          "name": "AvisarClientesAmanhaIntent",
+          "slots": [
+            {
+              "name": "mensagem",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "avisa meus clientes de amanhã que {mensagem}",
+            "avise meus clientes de amanhã que {mensagem}",
+            "manda uma mensagem para os clientes de amanhã dizendo que {mensagem}",
+            "fala para os clientes de amanhã que {mensagem}",
+            "avisa quem está marcado amanhã que {mensagem}"
+          ]
+        },
+        {
+          "name": "AtrasoIntent",
+          "slots": [
+            {
+              "name": "minutos",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "vou me atrasar {minutos} minutos",
+            "estou atrasado {minutos} minutos",
+            "estou atrasada {minutos} minutos",
+            "avisa que vou atrasar {minutos} minutos",
+            "avisa os próximos clientes que estou atrasado",
+            "vou atrasar",
+            "estou atrasado",
+            "estou atrasada"
+          ]
+        },
+        {
+          "name": "ComprovantesIntent",
+          "slots": [],
+          "samples": [
+            "tem comprovante pendente",
+            "tem algum comprovante",
+            "tem pagamento para aprovar",
+            "quais pagamentos estão pendentes",
+            "alguém pagou o sinal",
+            "tem pix para conferir"
+          ]
+        },
+        {
+          "name": "PausarBotIntent",
+          "slots": [],
+          "samples": [
+            "pausar o bot",
+            "pausa o atendimento automático",
+            "desliga o robô do whatsapp",
+            "pausa o bot",
+            "desliga o bot"
+          ]
+        },
+        {
+          "name": "AtivarBotIntent",
+          "slots": [],
+          "samples": [
+            "ativar o bot",
+            "liga o bot",
+            "ativa o atendimento automático",
+            "liga o robô do whatsapp",
+            "volta o bot"
+          ]
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
+      ],
+      "types": []
+    }
+  }
+}

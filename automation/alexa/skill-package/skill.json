@@ -1,0 +1,38 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "pt-BR": {
+          "name": "Agenda Convexa",
+          "summary": "Consulte e administre a agenda do seu estabelecimento pela Alexa.",
+          "description": "Para donos de estabelecimentos que usam o Convexa. Pergunte pela agenda do dia, próximo cliente, horários livres e faturamento; bloqueie horários e avise seus clientes pelo WhatsApp por voz.",
+          "examplePhrases": [
+            "Alexa, abrir agenda convexa",
+            "Alexa, perguntar à agenda convexa quem é o próximo cliente",
+            "Alexa, pedir à agenda convexa a minha agenda de amanhã"
+          ],
+          "keywords": ["agenda", "agendamento", "barbearia", "salão"]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": ["BR"],
+      "category": "BUSINESS_AND_FINANCE"
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "https://SEU-N8N/webhook/alexa",
+          "sslCertificateType": "Trusted"
+        }
+      }
+    },
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false
+    }
+  },
+  "manifestVersion": "1.0"
+}

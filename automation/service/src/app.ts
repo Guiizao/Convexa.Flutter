@@ -1,6 +1,7 @@
 import express from "express";
 import { env } from "./env.js";
 import { errorHandler } from "./http/util.js";
+import { integrationRoutes } from "./http/integrations.js";
 import { panelRoutes } from "./http/panel.js";
 import { whatsappRoutes } from "./http/whatsapp.js";
 
@@ -28,6 +29,7 @@ export function buildApp() {
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
   app.use(whatsappRoutes);
   app.use(panelRoutes);
+  app.use(integrationRoutes);
   app.use(errorHandler);
   return app;
 }

@@ -18,7 +18,8 @@ import { payments } from "../payments/repo.js";
 import { links } from "../settings/links.js";
 import { SEGMENTS, secretsSchema, settingsRepo } from "../settings/settings.js";
 import * as wa from "../whatsapp/messages.js";
-import { googleStatus } from "../google/oauth.js";
+import { authUrl, disconnect, googleConfigured, googleStatus } from "../google/oauth.js";
+import { syncGoogle } from "../google/sync.js";
 import { deliver } from "./outbox.js";
 import { ownerOnly, panelAuth } from "./panel-auth.js";
 import { HttpError, wrap } from "./util.js";
@@ -260,6 +261,35 @@ panelRoutes.delete(
   ownerOnly,
   wrap(async (req, res) => {
     await db().query("DELETE FROM alexa_link WHERE business_id = $1", [req.panel!.businessId]);
+    res.json({ ok: true });
+  }),
+);
+
+// ------------------------------------------------------------------ Google Agenda
+panelRoutes.get(
+  "/v1/panel/google/connect",
+  ownerOnly,
+  wrap(async (req, res) => {
+    if (!googleConfigured()) throw new HttpError(501, "Google Agenda não configurado no servidor (GOOGLE_CLIENT_ID/SECRET)");
+    res.json({ url: await authUrl(req.panel!.businessId) });
+  }),
+);
+
+panelRoutes.post(
+  "/v1/panel/google/sync",
+  wrap(async (req, res) => {
+    const biz = await bizFor(req);
+    await syncGoogle(panelCtx(biz));
+    res.json(await googleStatus(biz.businessId));
+  }),
+);
+
+panelRoutes.delete(
+  "/v1/panel/google",
+  ownerOnly,
+  wrap(async (req, res) => {
+    await disconnect(req.panel!.businessId);
+    await settingsRepo.update(req.panel!.businessId, { google: { enabled: false } });
     res.json({ ok: true });
   }),
 );

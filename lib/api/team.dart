@@ -69,15 +69,31 @@ class TeamRepository {
       ..sort((a, b) => a.active == b.active ? a.name.compareTo(b.name) : (a.active ? -1 : 1));
   }
 
-  /// Horário do estabelecimento, usado como sugestão para quem entra na equipe.
+  static List<WorkRange> _demoBusiness = _week(9 * 60, 19 * 60);
+
+  /// Horário de funcionamento do estabelecimento. A agenda só oferece horário
+  /// na interseção dele com o horário de cada profissional.
   Future<List<WorkRange>> businessHours() async {
-    if (ctx.demoMode) return _week(9 * 60, 19 * 60);
+    if (ctx.demoMode) return List.of(_demoBusiness);
     final b = await ctx.api.get('/api/business');
     final map = b is Map && b['data'] is Map ? b['data'] as Map : (b as Map? ?? const {});
     return [
       for (final h in (map['hours'] as List? ?? const []))
         if (h is Map) WorkRange((h['dayOfWeek'] as num).toInt(), (h['opensAt'] as num).toInt(), (h['closesAt'] as num).toInt()),
     ];
+  }
+
+  /// API: PUT /api/business/hours (substitui a semana inteira).
+  Future<void> saveBusinessHours(List<WorkRange> hours) async {
+    if (ctx.demoMode) {
+      _demoBusiness = List.of(hours);
+      return;
+    }
+    await ctx.api.put('/api/business/hours', body: {
+      'hours': [
+        for (final h in hours) {'dayOfWeek': h.day, 'opensAt': h.start, 'closesAt': h.end},
+      ],
+    });
   }
 
   Future<void> create({required String name, required List<String> serviceIds, required List<WorkRange> hours}) async {
@@ -106,7 +122,8 @@ class TeamRepository {
     await ctx.api.put('/api/employees/$id/hours', body: {'hours': [for (final h in hours) h.toJson()]});
   }
 
-  Future<void> remove(String id) async {
+  /// DELETE /api/employees/:id só desativa (não existe exclusão definitiva).
+  Future<void> deactivate(String id) async {
     if (ctx.demoMode) {
       _demo.removeWhere((m) => m.id == id);
       return;

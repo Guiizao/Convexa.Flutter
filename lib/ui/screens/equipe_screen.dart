@@ -26,7 +26,9 @@ class EquipeScreen extends StatefulWidget {
 
 class _EquipeScreenState extends State<EquipeScreen> {
   List<TeamMember>? _members;
+  List<WorkRange> _businessHours = const [];
   String? _error;
+  bool _showInactive = false;
 
   @override
   void initState() {
@@ -36,10 +38,13 @@ class _EquipeScreenState extends State<EquipeScreen> {
 
   Future<void> _load() async {
     try {
-      final list = await AppScope.read(context).team.list();
+      final team = AppScope.read(context).team;
+      final list = await team.list();
+      final hours = await team.businessHours();
       if (mounted) {
         setState(() {
           _members = list;
+          _businessHours = hours;
           _error = null;
         });
       }
@@ -62,6 +67,14 @@ class _EquipeScreenState extends State<EquipeScreen> {
     final changed = await showDialog<bool>(
       context: context,
       builder: (_) => _MemberEditor(member: member, services: state.serviceList, suggestedHours: suggested),
+    );
+    if (changed == true) await _load();
+  }
+
+  Future<void> _editBusinessHours() async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _BusinessHoursEditor(hours: _businessHours),
     );
     if (changed == true) await _load();
   }
@@ -102,7 +115,36 @@ class _EquipeScreenState extends State<EquipeScreen> {
           ],
         ),
         const SizedBox(height: Space.lg),
-        if (members.isEmpty)
+        StaggeredEntrance(
+          position: 0,
+          child: AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SectionHeader(
+                  title: 'Horário de funcionamento',
+                  subtitle: 'Quando o estabelecimento abre. O horário de cada profissional fica dentro dele.',
+                  trailing: AppButton(
+                    label: 'Editar',
+                    size: ButtonSize.small,
+                    variant: ButtonVariant.secondary,
+                    icon: Icons.schedule_rounded,
+                    onPressed: _editBusinessHours,
+                  ),
+                ),
+                if (_businessHours.isEmpty)
+                  const InfoBanner(
+                    tone: BannerTone.warning,
+                    message: 'Sem horário de funcionamento o bot não oferece nenhum horário. Toque em Editar para cadastrar.',
+                  )
+                else
+                  for (final line in _summary(_businessHours)) Text(line, style: AppType.small.copyWith(color: c.t2, height: 1.5)),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: Space.lg),
+        if (members.where((m) => m.active).isEmpty && !_showInactive)
           AppCard(
             child: EmptyState(
               icon: Icons.groups_outlined,
@@ -117,10 +159,23 @@ class _EquipeScreenState extends State<EquipeScreen> {
             spacing: Space.lg,
             runSpacing: Space.lg,
             children: [
-              for (var i = 0; i < members.length; i++)
-                StaggeredEntrance(position: i, child: _MemberCard(member: members[i], services: services, onEdit: () => _edit(members[i]))),
+              for (final (i, m) in members.where((m) => m.active || _showInactive).indexed)
+                StaggeredEntrance(position: i + 1, child: _MemberCard(member: m, services: services, onEdit: () => _edit(m))),
             ],
           ),
+        if (members.any((m) => !m.active)) ...[
+          const SizedBox(height: Space.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AppButton(
+              label: _showInactive ? 'Esconder inativos' : 'Mostrar inativos (${members.where((m) => !m.active).length})',
+              size: ButtonSize.small,
+              variant: ButtonVariant.ghost,
+              icon: _showInactive ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+              onPressed: () => setState(() => _showInactive = !_showInactive),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -290,32 +345,6 @@ class _MemberEditorState extends State<_MemberEditor> {
     }
   }
 
-  Future<void> _remove() async {
-    final c = context.colors;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: c.card,
-        title: Text('Remover ${widget.member!.name}?', style: AppType.h3.copyWith(color: c.t1)),
-        content: Text(
-          'Os horários já marcados com essa pessoa continuam na agenda. Para só parar de oferecer horários, prefira desativar.',
-          style: AppType.small.copyWith(color: c.t2, height: 1.45),
-        ),
-        actions: [
-          AppButton(label: 'Voltar', variant: ButtonVariant.ghost, onPressed: () => Navigator.of(ctx).pop(false)),
-          AppButton(label: 'Remover', variant: ButtonVariant.danger, onPressed: () => Navigator.of(ctx).pop(true)),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    try {
-      await AppScope.read(context).team.remove(widget.member!.id);
-      if (mounted) Navigator.of(context).pop(true);
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -345,7 +374,7 @@ class _MemberEditorState extends State<_MemberEditor> {
                       const SizedBox(height: Space.md),
                       SettingRow(
                         title: 'Ativo',
-                        description: 'Desativado, o bot para de oferecer horários com essa pessoa.',
+                        description: 'Desativado, o bot para de oferecer horários com essa pessoa. Os horários já marcados continuam na agenda.',
                         value: _active,
                         onChanged: (v) => setState(() => _active = v),
                       ),
@@ -394,10 +423,7 @@ class _MemberEditorState extends State<_MemberEditor> {
                 spacing: Space.sm,
                 runSpacing: Space.sm,
                 children: [
-                  if (widget.member != null)
-                    AppButton(label: 'Remover', variant: ButtonVariant.ghost, icon: Icons.delete_outline_rounded, onPressed: _saving ? null : _remove)
-                  else
-                    const SizedBox.shrink(),
+                  const SizedBox.shrink(),
                   Wrap(spacing: Space.sm, children: [
                     AppButton(label: 'Cancelar', variant: ButtonVariant.secondary, onPressed: _saving ? null : () => Navigator.of(context).pop(false)),
                     AppButton(label: 'Salvar', icon: Icons.check_rounded, loading: _saving, onPressed: _save),
@@ -416,7 +442,8 @@ class _DayRow extends StatelessWidget {
   final int day;
   final _DayPlan plan;
   final VoidCallback onChanged;
-  const _DayRow({required this.day, required this.plan, required this.onChanged});
+  final bool business;
+  const _DayRow({required this.day, required this.plan, required this.onChanged, this.business = false});
 
   @override
   Widget build(BuildContext context) {
@@ -441,7 +468,7 @@ class _DayRow extends StatelessWidget {
         children: [
           Row(children: [
             Expanded(child: Text(_daysFull[day], style: AppType.bodyStrong.copyWith(color: plan.on ? c.t1 : c.t3))),
-            Text(plan.on ? 'Trabalha' : 'Folga', style: AppType.caption.copyWith(color: c.t2)),
+            Text(plan.on ? (business ? 'Aberto' : 'Trabalha') : (business ? 'Fechado' : 'Folga'), style: AppType.caption.copyWith(color: c.t2)),
             const SizedBox(width: Space.sm),
             AppSwitch(value: plan.on, onChanged: (v) {
               plan.on = v;
@@ -486,6 +513,103 @@ class _DayRow extends StatelessWidget {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BusinessHoursEditor extends StatefulWidget {
+  final List<WorkRange> hours;
+  const _BusinessHoursEditor({required this.hours});
+
+  @override
+  State<_BusinessHoursEditor> createState() => _BusinessHoursEditorState();
+}
+
+class _BusinessHoursEditorState extends State<_BusinessHoursEditor> {
+  late final List<_DayPlan> _week = [
+    for (var d = 0; d < 7; d++)
+      _DayPlan.from([
+        for (final h in (widget.hours.isEmpty ? [for (var x = 1; x <= 6; x++) WorkRange(x, 9 * 60, 18 * 60)] : widget.hours))
+          if (h.day == d) h,
+      ]),
+  ];
+  bool _saving = false;
+  String? _error;
+
+  Future<void> _save() async {
+    final problems = [for (var d = 0; d < 7; d++) if (_week[d].problem != null) '${_daysFull[d]}: ${_week[d].problem}'];
+    if (problems.isNotEmpty) return setState(() => _error = problems.first);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await AppScope.read(context).team.saveBusinessHours([for (var d = 0; d < 7; d++) ..._week[d].ranges(d)]);
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final narrow = MediaQuery.sizeOf(context).width < 560;
+    return Dialog(
+      backgroundColor: c.card,
+      insetPadding: EdgeInsets.symmetric(horizontal: narrow ? Space.md : Space.xxl, vertical: Space.xl),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.xl)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Space.xl, Space.xl, Space.xl, Space.sm),
+              child: Text('Horário de funcionamento', style: AppType.h2.copyWith(color: c.t1)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Space.xl, 0, Space.xl, Space.md),
+              child: Text(
+                'Vale para todas as semanas. Para fechar um dia específico (feriado, folga), use a tela Encerrar ou peça ao bot pelo WhatsApp.',
+                style: AppType.small.copyWith(color: c.t2, height: 1.45),
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final d in const [1, 2, 3, 4, 5, 6, 0]) _DayRow(day: d, plan: _week[d], business: true, onChanged: () => setState(() {})),
+                    if (_error != null) ...[
+                      const SizedBox(height: Space.md),
+                      InfoBanner(tone: BannerTone.danger, message: _error!),
+                    ],
+                    const SizedBox(height: Space.lg),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(Space.xl, Space.md, Space.xl, Space.lg),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: c.border))),
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: Space.sm,
+                runSpacing: Space.sm,
+                children: [
+                  AppButton(label: 'Cancelar', variant: ButtonVariant.secondary, onPressed: _saving ? null : () => Navigator.of(context).pop(false)),
+                  AppButton(label: 'Salvar horário', icon: Icons.check_rounded, loading: _saving, onPressed: _save),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

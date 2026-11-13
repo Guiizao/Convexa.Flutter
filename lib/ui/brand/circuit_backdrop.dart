@@ -61,6 +61,7 @@ class _CircuitBackdropState extends State<CircuitBackdrop>
   @override
   Widget build(BuildContext context) {
     final dark = context.isDarkMode;
+    final c = context.colors;
 
     return IgnorePointer(
       child: RepaintBoundary(
@@ -73,6 +74,8 @@ class _CircuitBackdropState extends State<CircuitBackdrop>
               dark: dark,
               strength: widget.subdued ? 0.62 : 1.0,
               dense: !widget.subdued,
+              accent: c.primary,
+              ink: c.t3,
             ),
           ),
         ),
@@ -105,22 +108,27 @@ class _CircuitPainter extends CustomPainter {
   final double strength;
   final bool dense;
 
+  /// Cor de destaque da paleta (o brilho que corre nas trilhas).
+  final Color accent;
+
+  /// Cor neutra da paleta, misturada ao destaque nas trilhas paradas.
+  final Color ink;
+
   _CircuitPainter({
     required this.elapsedMs,
     required this.dark,
     required this.strength,
     required this.dense,
+    required this.accent,
+    required this.ink,
   });
 
-  static const _greensDark = [
-    Color(0xFF2BD96B),
-    Color(0xFF17A854),
-    Color(0xFF0E7A3C),
-  ];
-  static const _greensLight = [
-    Color(0xFF0E6B34),
-    Color(0xFF14874A),
-    Color(0xFF1FA65C),
+  /// Três tons para as trilhas: do destaque até quase a cor neutra. Antes eram
+  /// verdes fixos; agora o fundo acompanha a paleta (na Neutra fica cinza).
+  late final List<Color> _tones = [
+    accent,
+    Color.lerp(accent, ink, 0.4)!,
+    Color.lerp(accent, ink, 0.7)!,
   ];
 
   static const _streak = 150.0;
@@ -130,7 +138,7 @@ class _CircuitPainter extends CustomPainter {
   /// separa "placa de circuito" de "rabisco".
   static const _pitch = 26.0;
 
-  List<Color> get _palette => dark ? _greensDark : _greensLight;
+  List<Color> get _palette => _tones;
 
   Size? _builtFor;
   List<_Trace> _traces = const [];
@@ -303,8 +311,8 @@ class _CircuitPainter extends CustomPainter {
       }
     }
 
-    final glow = dark ? _greensDark[0] : _greensLight[2];
-    final core = dark ? const Color(0xFFD6FFEA) : _greensLight[0];
+    final glow = accent;
+    final core = dark ? Color.lerp(accent, const Color(0xFFFFFFFF), 0.7)! : accent;
 
     for (final tr in _lit) {
       final cycle = tr.length + _streak + _rest;
@@ -430,7 +438,9 @@ class _CircuitPainter extends CustomPainter {
   bool shouldRepaint(covariant _CircuitPainter old) =>
       old.elapsedMs != elapsedMs ||
       old.dark != dark ||
-      old.strength != strength;
+      old.strength != strength ||
+      old.accent != accent ||
+      old.ink != ink;
 }
 
 /// Véu sobre as trilhas para o conteúdo não competir com o fundo. Fica opaco

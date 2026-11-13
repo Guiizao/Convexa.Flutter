@@ -11,6 +11,8 @@ class AppColors {
   final Color primary;
   final Color primaryText;
   final Color primaryWash;
+  /// Texto e ícone sobre a cor primária (botão principal, chip selecionado).
+  final Color onPrimary;
   final Color amber;
   final Color amberWash;
   final Color red;
@@ -35,6 +37,7 @@ class AppColors {
     required this.primary,
     required this.primaryText,
     required this.primaryWash,
+    this.onPrimary = const Color(0xFFFFFFFF),
     required this.amber,
     required this.amberWash,
     required this.red,
@@ -66,6 +69,7 @@ class AppColors {
         primary: Color.lerp(a.primary, b.primary, t)!,
         primaryText: Color.lerp(a.primaryText, b.primaryText, t)!,
         primaryWash: Color.lerp(a.primaryWash, b.primaryWash, t)!,
+        onPrimary: Color.lerp(a.onPrimary, b.onPrimary, t)!,
         amber: Color.lerp(a.amber, b.amber, t)!,
         amberWash: Color.lerp(a.amberWash, b.amberWash, t)!,
         red: Color.lerp(a.red, b.red, t)!,
@@ -92,6 +96,7 @@ class AppColors {
     primary: Color(0xFF2BD96B),
     primaryText: Color(0xFF5CE88C),
     primaryWash: Color(0x1F2BD96B),
+    onPrimary: Color(0xFF04120D),
     amber: Color(0xFFE0973A),
     amberWash: Color(0x1AE0973A),
     red: Color(0xFFE55A5A),

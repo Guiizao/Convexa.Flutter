@@ -267,7 +267,9 @@ class _AbsenteeismCard extends StatelessWidget {
     final c = context.colors;
     final state = AppScope.of(context);
     final m = state.metrics;
-    final settings = state.settings;
+    final prepay = (state.botSettings?['prepayment'] as Map?) ?? const {};
+    final prepayMode = (prepay['mode'] ?? 'off').toString();
+    final discount = (prepay['fullPaymentDiscountPercent'] as num?)?.toInt() ?? 0;
 
     final totalBooked = m.customersCount + m.noShowCount + m.cancellationsCount;
     final rate = totalBooked == 0 ? 0.0 : m.noShowCount / totalBooked;
@@ -305,17 +307,26 @@ class _AbsenteeismCard extends StatelessWidget {
           const SizedBox(height: Space.lg),
           ProgressBar(value: rate, color: rate > 0.1 ? c.amber : c.primary),
           const SizedBox(height: Space.xl),
-          if (!settings.prepaymentEnabled)
+          if (state.botSettings == null)
+            const SizedBox.shrink()
+          else if (prepayMode == 'off')
             InfoBanner(
               tone: BannerTone.info,
               message:
-                  'O pagamento antecipado com desconto está desligado. Ligar essa opção em Configurações costuma ser a forma mais direta de reduzir faltas.',
+                  'O sinal por Pix está desligado. Pedir um sinal na hora de marcar costuma ser a forma mais direta de reduzir faltas.',
+              action: AppButton(
+                label: 'Ver em Automação',
+                size: ButtonSize.small,
+                variant: ButtonVariant.secondary,
+                onPressed: () => AppScope.read(context).openTab('Automação'),
+              ),
             )
           else
             InfoBanner(
               tone: BannerTone.success,
-              message:
-                  'Pagamento antecipado ativo com ${settings.prepaymentDiscountPercent}% de desconto para quem confirma na hora do agendamento.',
+              message: prepayMode == 'required'
+                  ? 'Sinal por Pix obrigatório.${discount > 0 ? ' Quem paga tudo antes ganha $discount% de desconto.' : ''}'
+                  : 'Sinal por Pix opcional.${discount > 0 ? ' Quem paga tudo antes ganha $discount% de desconto.' : ''}',
             ),
         ],
       ),

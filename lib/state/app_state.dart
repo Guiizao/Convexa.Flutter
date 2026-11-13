@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../api/api_client.dart';
+import '../api/automation.dart';
 import '../api/repositories.dart';
 import '../api/sample_data.dart';
+import '../core/launch_options.dart';
+import '../core/prefs.dart';
 import '../models/models.dart';
 import '../theme/palettes.dart';
 import '../theme/tokens.dart';
@@ -20,6 +23,8 @@ class AppState extends ChangeNotifier {
     shifts = ShiftRepository(_ctx);
     metricsRepo = MetricsRepository(_ctx);
     settingsRepo = SettingsRepository(_ctx);
+    automation = AutomationRepository(_ctx);
+    business = BusinessRepository(_ctx);
     // Se há sessão guardada (web), o app abre num splash até o restore terminar,
     // em vez de piscar a tela de login.
     _restoring = _ctx.api.hasStoredSession;
@@ -32,9 +37,23 @@ class AppState extends ChangeNotifier {
   late final ShiftRepository shifts;
   late final MetricsRepository metricsRepo;
   late final SettingsRepository settingsRepo;
+  late final AutomationRepository automation;
+  late final BusinessRepository business;
 
-  bool _isDark = true;
-  AppPalette _palette = AppPalette.convexa;
+  // Padrão: claro e neutro. A escolha do usuário fica salva no aparelho.
+  final Prefs _prefs = Prefs();
+  late bool _isDark = _initialDark();
+  late AppPalette _palette = AppPalette.values.firstWhere(
+    (p) => p.name == _prefs.read('palette'),
+    orElse: () => AppPalette.neutro,
+  );
+
+  bool _initialDark() {
+    final forced = LaunchOptions.theme;
+    if (forced == 'escuro') return true;
+    if (forced == 'claro') return false;
+    return _prefs.read('dark') == '1';
+  }
   Session? _session;
   bool _demoMode = false;
   bool _restoring = false;
@@ -80,6 +99,22 @@ class AppState extends ChangeNotifier {
   WorkShift get shift => _shift;
   WorkShift? get tomorrowPlan => _tomorrowPlan;
   AgentSettings get settings => _settings;
+
+  // Regras do bot (serviço de automação). Nulo enquanto não carregou ou se o
+  // serviço estiver fora do ar; as telas tratam como "desconhecido".
+  Map<String, dynamic>? _botSettings;
+  Map<String, dynamic>? get botSettings => _botSettings;
+  void updateBotSettings(Map<String, dynamic> next) {
+    _botSettings = next;
+    notifyListeners();
+  }
+
+  /// Pedido de troca de aba vindo de dentro de uma tela (ex.: "Abrir Automação").
+  final ValueNotifier<String?> tabRequest = ValueNotifier(null);
+  void openTab(String label) {
+    tabRequest.value = null;
+    tabRequest.value = label;
+  }
   DashboardMetrics get metrics => _metrics;
   List<AppNotification> get notifications => _notifications;
   int get unreadCount => _notifications.where((n) => !n.read).length;
@@ -103,11 +138,13 @@ class AppState extends ChangeNotifier {
   void setPalette(AppPalette next) {
     if (next == _palette) return;
     _palette = next;
+    _prefs.write('palette', next.name);
     notifyListeners();
   }
 
   void toggleTheme() {
     _isDark = !_isDark;
+    _prefs.write('dark', _isDark ? '1' : '0');
     notifyListeners();
   }
 
@@ -294,6 +331,13 @@ class AppState extends ChangeNotifier {
     } on ApiException catch (e) {
       _handleAuthFailure(e);
       _settings = const AgentSettings();
+    }
+    // O serviço de automação é outro servidor: se ele cair, o painel segue
+    // funcionando e só os avisos que dependem dele ficam neutros.
+    try {
+      _botSettings = (await automation.status()).settings;
+    } catch (_) {
+      _botSettings = null;
     }
   }
 

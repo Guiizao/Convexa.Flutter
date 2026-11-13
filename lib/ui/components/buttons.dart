@@ -4,6 +4,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 
 enum ButtonVariant { primary, secondary, ghost, danger }
+
 enum ButtonSize { small, medium, large }
 
 class AppButton extends StatefulWidget {
@@ -53,7 +54,7 @@ class _AppButtonState extends State<AppButton> {
         background = _hovered && enabled
             ? Color.lerp(c.primary, Colors.white, 0.12)!
             : c.primary;
-        foreground = context.isDarkMode ? const Color(0xFF04120D) : Colors.white;
+        foreground = c.onPrimary;
         borderColor = null;
       case ButtonVariant.secondary:
         background = _hovered && enabled ? c.surfHover : c.surf;
@@ -64,7 +65,8 @@ class _AppButtonState extends State<AppButton> {
         foreground = c.t2;
         borderColor = Colors.transparent;
       case ButtonVariant.danger:
-        background = _hovered && enabled ? c.red.withValues(alpha: 0.18) : c.redWash;
+        background =
+            _hovered && enabled ? c.red.withValues(alpha: 0.18) : c.redWash;
         foreground = c.red;
         borderColor = c.red.withValues(alpha: 0.32);
     }
@@ -80,7 +82,8 @@ class _AppButtonState extends State<AppButton> {
             child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
           )
         else if (widget.icon != null)
-          Icon(widget.icon, size: widget.size == ButtonSize.small ? 14 : 16,
+          Icon(widget.icon,
+              size: widget.size == ButtonSize.small ? 14 : 16,
               color: foreground),
         if (widget.loading || widget.icon != null) const SizedBox(width: 8),
         Flexible(
@@ -96,29 +99,38 @@ class _AppButtonState extends State<AppButton> {
       ],
     );
 
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: enabled ? widget.onPressed : null,
-        child: AnimatedOpacity(
-          duration: context.reactDuration,
-          opacity: enabled ? 1 : 0.45,
-          child: AnimatedContainer(
+    // Leitores de tela (e testes automatizados) enxergam um botão de verdade.
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: widget.label,
+      excludeSemantics: true,
+      onTap: enabled ? widget.onPressed : null,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: enabled ? widget.onPressed : null,
+          child: AnimatedOpacity(
             duration: context.reactDuration,
-            height: height,
-            width: widget.expand ? double.infinity : null,
-            padding: EdgeInsets.symmetric(horizontal: hPad),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(Radii.md),
-              border: borderColor == null
-                  ? null
-                  : Border.all(color: borderColor),
+            opacity: enabled ? 1 : 0.45,
+            child: AnimatedContainer(
+              duration: context.reactDuration,
+              height: height,
+              width: widget.expand ? double.infinity : null,
+              padding: EdgeInsets.symmetric(horizontal: hPad),
+              // Só centraliza (e portanto ocupa a largura toda) quando expand.
+              // Sem isso, um botão comum dentro de Column/Wrap esticava inteiro.
+              alignment: widget.expand ? Alignment.center : null,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(Radii.md),
+                border:
+                    borderColor == null ? null : Border.all(color: borderColor),
+              ),
+              child: child,
             ),
-            child: child,
           ),
         ),
       ),
@@ -218,7 +230,13 @@ class _AppIconButtonState extends State<AppIconButton> {
       ),
     );
 
-    if (widget.tooltip == null) return button;
-    return Tooltip(message: widget.tooltip!, child: button);
+    final semantic = Semantics(
+      button: true,
+      label: widget.tooltip,
+      child: button,
+    );
+    if (widget.tooltip == null) return semantic;
+    return Tooltip(
+        message: widget.tooltip!, excludeFromSemantics: true, child: semantic);
   }
 }

@@ -73,6 +73,26 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             const Positioned.fill(child: CircuitBackdrop()),
             const Positioned.fill(child: BackdropScrim()),
+            // Véu suave atrás do texto da esquerda: as trilhas continuam
+            // aparecendo nas bordas, mas não cruzam o título e a lista.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.72, 0.02),
+                      radius: 0.62,
+                      colors: [
+                        c.bg.withValues(alpha: 0.9),
+                        c.bg.withValues(alpha: 0.6),
+                        c.bg.withValues(alpha: 0),
+                      ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             SafeArea(
               child: Row(
                 children: [
@@ -254,9 +274,7 @@ class _Checkbox extends StatelessWidget {
               child: value
                   ? Icon(Icons.check_rounded,
                       size: 12,
-                      color: context.isDarkMode
-                          ? const Color(0xFF04120D)
-                          : Colors.white)
+                      color: c.onPrimary)
                   : null,
             ),
             const SizedBox(width: 9),

@@ -209,9 +209,11 @@ class _ShiftHeroCard extends StatelessWidget {
             ),
             const SizedBox(height: Space.md),
             Text(
-              state.settings.openingBroadcast
-                  ? 'Ao abrir, o agente avisa no WhatsApp todos os clientes com horário marcado hoje.'
-                  : 'O aviso automático de abertura está desligado nas configurações.',
+              switch ((state.botSettings?['reminders'] as Map?)?['enabled']) {
+                true => 'Os clientes de hoje recebem lembrete automático no WhatsApp antes do horário.',
+                false => 'Os lembretes automáticos estão desligados em Automação.',
+                _ => 'Para avisar os clientes de hoje, use "Avisar clientes" em Automação.',
+              },
               style: AppType.caption.copyWith(color: c.t2, height: 1.5),
             ),
           ] else if (shift.state == ShiftState.open) ...[

@@ -118,59 +118,71 @@ class SegmentedControl<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final row = Row(
-      mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-      children: options.map((option) {
-        final active = option.value == selected;
-        final content = AnimatedContainer(
-          duration: context.reactDuration,
-          padding: const EdgeInsets.symmetric(
-              horizontal: Space.md, vertical: 8),
-          decoration: BoxDecoration(
-            color: active ? c.card : Colors.transparent,
-            borderRadius: BorderRadius.circular(Radii.sm),
-            border: Border.all(
-                color: active ? c.borderStrong : Colors.transparent),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (option.icon != null) ...[
-                Icon(option.icon,
-                    size: 13, color: active ? c.t1 : c.t2),
-                const SizedBox(width: 6),
+    // Em telas estreitas os rótulos encolhem com reticências em vez de
+    // estourar a linha. Sem largura limitada (dentro de outra Row solta),
+    // volta ao tamanho natural.
+    return LayoutBuilder(builder: (context, box) {
+      final bounded = box.hasBoundedWidth;
+      final row = Row(
+        mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+        children: options.map((option) {
+          final active = option.value == selected;
+          final label = Text(
+            option.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+            style: AppType.caption.copyWith(
+              color: active ? c.t1 : c.t2,
+              fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+            ),
+          );
+          final content = AnimatedContainer(
+            duration: context.reactDuration,
+            padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: 8),
+            decoration: BoxDecoration(
+              color: active ? c.card : Colors.transparent,
+              borderRadius: BorderRadius.circular(Radii.sm),
+              border: Border.all(color: active ? c.borderStrong : Colors.transparent),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (option.icon != null) ...[
+                  Icon(option.icon, size: 13, color: active ? c.t1 : c.t2),
+                  const SizedBox(width: 6),
+                ],
+                bounded ? Flexible(child: label) : label,
               ],
-              Text(
-                option.label,
-                style: AppType.caption.copyWith(
-                  color: active ? c.t1 : c.t2,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                ),
+            ),
+          );
+          final tappable = Semantics(
+            button: true,
+            selected: active,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => onChanged(option.value),
+                child: content,
               ),
-            ],
-          ),
-        );
-        final tappable = MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: () => onChanged(option.value),
-            child: content,
-          ),
-        );
-        return expand ? Expanded(child: tappable) : tappable;
-      }).toList(),
-    );
+            ),
+          );
+          if (!bounded) return tappable;
+          return expand ? Expanded(child: tappable) : Flexible(child: tappable);
+        }).toList(),
+      );
 
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: c.surf,
-        borderRadius: BorderRadius.circular(Radii.md),
-        border: Border.all(color: c.border),
-      ),
-      child: row,
-    );
+      return Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: c.surf,
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: Border.all(color: c.border),
+        ),
+        child: row,
+      );
+    });
   }
 }
 

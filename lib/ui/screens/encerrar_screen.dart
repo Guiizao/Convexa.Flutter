@@ -188,11 +188,13 @@ class _DaySummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Space.xl),
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            spacing: Space.sm,
+            runSpacing: 2,
             children: [
               Text('Do previsto para o dia',
                   style: AppType.caption.copyWith(color: c.t2)),
-              const Spacer(),
               Text(
                 '${formatCurrency(realized)} de ${formatCurrency(expected)}',
                 style: AppType.caption.copyWith(

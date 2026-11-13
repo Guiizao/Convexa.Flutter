@@ -12,7 +12,9 @@ class ConvexaMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fill = color ?? brandGreen;
+    // A marca acompanha a paleta: verde na Convexa, grafite na Neutra.
+    final c = context.colors;
+    final fill = color ?? c.primary;
     return Container(
       width: size,
       height: size,
@@ -23,7 +25,7 @@ class ConvexaMark extends StatelessWidget {
         child: Text(
           'c.',
           style: TextStyle(
-            color: const Color(0xFF04120B),
+            color: c.onPrimary,
             fontSize: size * 0.5,
             height: 1,
             fontWeight: FontWeight.w700,
@@ -67,7 +69,7 @@ class ConvexaLogo extends StatelessWidget {
               TextSpan(
                 text: '.',
                 style: TextStyle(
-                  color: brandGreen,
+                  color: c.primary,
                   fontSize: size * 0.86,
                   height: 1,
                   fontWeight: FontWeight.w700,

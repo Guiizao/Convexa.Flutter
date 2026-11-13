@@ -148,9 +148,7 @@ class _CalendarCard extends StatelessWidget {
                               '${cell.day}',
                               style: AppType.small.copyWith(
                                 color: selected
-                                    ? (context.isDarkMode
-                                        ? const Color(0xFF04120D)
-                                        : Colors.white)
+                                    ? c.onPrimary
                                     : c.t1,
                                 fontWeight: selected || isToday
                                     ? FontWeight.w600
@@ -165,9 +163,7 @@ class _CalendarCard extends StatelessWidget {
                                 shape: BoxShape.circle,
                                 color: hasBooking
                                     ? (selected
-                                        ? (context.isDarkMode
-                                            ? const Color(0xFF04120D)
-                                            : Colors.white)
+                                        ? c.onPrimary
                                         : c.primary)
                                     : Colors.transparent,
                               ),

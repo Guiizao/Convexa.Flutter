@@ -45,6 +45,17 @@ class ApiClient {
     defaultValue: defaultBaseUrl,
   );
 
+  /// Serviço de automação (bot do WhatsApp, Pix, Google Agenda, Alexa).
+  /// Usa a mesma sessão do painel: o token da ConvexaAPI vale lá também.
+  static const String automationBaseUrl = String.fromEnvironment(
+    'AUTOMACAO_URL',
+    defaultValue: 'https://automacao-convexa.altvia.cloud',
+  );
+
+  /// Endereço público do webhook do WhatsApp (n8n), mostrado ao dono para
+  /// colar no painel da Meta. Vazio: a tela orienta a pedir ao suporte.
+  static const String whatsappWebhookUrl = String.fromEnvironment('WHATSAPP_WEBHOOK_URL');
+
   static const Duration timeout = Duration(seconds: 12);
 
   final http.Client _http;
@@ -98,11 +109,15 @@ class ApiClient {
       };
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
-    final normalized = path.startsWith('/') ? path : '/$path';
+    // Rotas "auto:/v1/..." vão para o serviço de automação
+    final isAuto = path.startsWith('auto:');
+    final rest = isAuto ? path.substring(5) : path;
+    final normalized = rest.startsWith('/') ? rest : '/$rest';
+    final base = isAuto ? automationBaseUrl : baseUrl;
     final cleanQuery = query?.entries
         .where((e) => e.value != null)
         .map((e) => MapEntry(e.key, e.value.toString()));
-    return Uri.parse('$baseUrl$normalized').replace(
+    return Uri.parse('$base$normalized').replace(
       queryParameters:
           cleanQuery == null || cleanQuery.isEmpty ? null : Map.fromEntries(cleanQuery),
     );

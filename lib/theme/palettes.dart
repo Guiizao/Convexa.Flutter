@@ -10,6 +10,7 @@ import 'tokens.dart';
 /// atenção. Se elas mudassem junto com a paleta, o usuário teria que reaprender
 /// o significado de cada cor ao trocar de tema.
 enum AppPalette {
+  neutro('Neutro', 'Branco, cinza e grafite'),
   convexa('Convexa', 'Verde da marca'),
   grafite('Grafite', 'Neutro com acento âmbar'),
   indigo('Índigo', 'Azul profundo, sóbrio'),
@@ -23,9 +24,9 @@ enum AppPalette {
 
   AppColors colors(bool dark) => dark ? _dark[this]! : _light[this]!;
 
-  /// Amostra usada no seletor: fundo, superfície e acento.
-  List<Color> get swatch {
-    final c = colors(true);
+  /// Amostra usada no seletor: fundo, superfície e acento, no modo atual.
+  List<Color> swatch({required bool dark}) {
+    final c = colors(dark);
     return [c.bg, c.surf, c.primary];
   }
 }
@@ -55,6 +56,7 @@ AppColors _mk({
   required Color t1,
   required Color t2,
   required Color t3,
+  Color? onPrimary,
 }) {
   Color wash(Color c) => c.withValues(alpha: dark ? 0.12 : 0.09);
   return AppColors(
@@ -68,6 +70,7 @@ AppColors _mk({
     primary: primary,
     primaryText: primaryText,
     primaryWash: wash(primary),
+    onPrimary: onPrimary ?? (dark ? const Color(0xFF04120D) : const Color(0xFFFFFFFF)),
     amber: dark ? _dAmber : _lAmber,
     amberWash: wash(dark ? _dAmber : _lAmber),
     red: dark ? _dRed : _lRed,
@@ -84,6 +87,22 @@ AppColors _mk({
 }
 
 final Map<AppPalette, AppColors> _dark = {
+  AppPalette.neutro: _mk(
+    dark: true,
+    bg: const Color(0xFF0E0F11),
+    bgElevated: const Color(0xFF131416),
+    card: const Color(0xFF17191C),
+    surf: const Color(0xFF1E2024),
+    surfHover: const Color(0xFF26292E),
+    border: const Color(0xFF272A2F),
+    borderStrong: const Color(0xFF3A3E45),
+    primary: const Color(0xFFE4E6E9),
+    primaryText: const Color(0xFFF1F2F4),
+    onPrimary: const Color(0xFF121417),
+    t1: const Color(0xFFF1F2F4),
+    t2: const Color(0xFF9CA2AA),
+    t3: const Color(0xFF61676F),
+  ),
   AppPalette.convexa: _mk(
     dark: true,
     bg: const Color(0xFF040A06),
@@ -162,6 +181,22 @@ final Map<AppPalette, AppColors> _dark = {
 };
 
 final Map<AppPalette, AppColors> _light = {
+  AppPalette.neutro: _mk(
+    dark: false,
+    bg: const Color(0xFFF6F7F8),
+    bgElevated: const Color(0xFFFFFFFF),
+    card: const Color(0xFFFFFFFF),
+    surf: const Color(0xFFF0F1F3),
+    surfHover: const Color(0xFFE7E9EC),
+    border: const Color(0xFFE3E5E8),
+    borderStrong: const Color(0xFFCBCFD4),
+    primary: const Color(0xFF2A2F35),
+    primaryText: const Color(0xFF1E2227),
+    onPrimary: const Color(0xFFFFFFFF),
+    t1: const Color(0xFF15181B),
+    t2: const Color(0xFF5B626A),
+    t3: const Color(0xFF959CA4),
+  ),
   AppPalette.convexa: _mk(
     dark: false,
     bg: const Color(0xFFF5F8F6),

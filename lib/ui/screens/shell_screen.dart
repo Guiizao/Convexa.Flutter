@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/date_utils.dart';
 import '../../core/formatters.dart';
+import '../../core/launch_options.dart';
 import '../../core/responsive.dart';
 import '../../models/models.dart';
 import '../../state/app_state.dart';
@@ -12,6 +13,7 @@ import '../components/buttons.dart';
 import '../components/motion.dart';
 import '../components/primitives.dart';
 import 'agenda_screen.dart';
+import 'automacao_screen.dart';
 import 'configuracoes_screen.dart';
 import 'dashboard_screen.dart';
 import 'encerrar_screen.dart';
@@ -65,6 +67,12 @@ final navDestinations = <NavDestination>[
     build: () => const EncerrarScreen(),
   ),
   NavDestination(
+    label: 'Automação',
+    icon: Icons.forum_outlined,
+    activeIcon: Icons.forum_rounded,
+    build: () => const AutomacaoScreen(),
+  ),
+  NavDestination(
     label: 'Configurações',
     icon: Icons.tune_rounded,
     activeIcon: Icons.tune_rounded,
@@ -80,7 +88,47 @@ class ShellScreen extends StatefulWidget {
 }
 
 class _ShellScreenState extends State<ShellScreen> {
-  int _index = 1;
+  int _index = _initialIndex();
+  ValueNotifier<String?>? _tabRequest;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = AppScope.read(context).tabRequest;
+    if (identical(next, _tabRequest)) return;
+    _tabRequest?.removeListener(_onTabRequest);
+    _tabRequest = next..addListener(_onTabRequest);
+  }
+
+  @override
+  void dispose() {
+    _tabRequest?.removeListener(_onTabRequest);
+    super.dispose();
+  }
+
+  void _onTabRequest() {
+    final label = _tabRequest?.value;
+    if (label == null) return;
+    final i = navDestinations.indexWhere((d) => d.label == label);
+    if (i >= 0 && mounted) setState(() => _index = i);
+  }
+
+  static int _initialIndex() {
+    final tab = LaunchOptions.tab;
+    if (tab == null) return 1;
+    final n = int.tryParse(tab);
+    if (n != null && n >= 0 && n < navDestinations.length) return n;
+    String fold(String s) => s
+        .toLowerCase()
+        .replaceAll(RegExp('[áàâã]'), 'a')
+        .replaceAll(RegExp('[éê]'), 'e')
+        .replaceAll('í', 'i')
+        .replaceAll(RegExp('[óôõ]'), 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ç', 'c');
+    final i = navDestinations.indexWhere((d) => fold(d.label) == fold(tab));
+    return i >= 0 ? i : 1;
+  }
   bool _railExpanded = true;
 
   static const _mobilePrimary = [0, 1, 2, 3];

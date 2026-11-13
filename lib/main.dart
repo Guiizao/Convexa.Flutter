@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'core/launch_options.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 import 'ui/brand/logo.dart';
@@ -12,9 +13,13 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final state = AppState();
   runApp(ConvexaApp(state: state));
-  // Reidrata "continuar conectado" em segundo plano; enquanto isso o app mostra
-  // um splash (só quando há sessão guardada para restaurar).
-  unawaited(state.restoreSession());
+  if (LaunchOptions.demo) {
+    unawaited(state.enterDemoMode());
+  } else {
+    // Reidrata "continuar conectado" em segundo plano; enquanto isso o app mostra
+    // um splash (só quando há sessão guardada para restaurar).
+    unawaited(state.restoreSession());
+  }
 }
 
 class ConvexaApp extends StatefulWidget {

@@ -445,6 +445,43 @@ class SettingsRepository {
   }
 }
 
+/// Dados do estabelecimento e a conexão com o WhatsApp (Meta Cloud API).
+/// GET devolve só campos públicos; token e app secret são só de escrita
+/// (o backend cifra e nunca devolve).
+class BusinessRepository {
+  final RepositoryContext ctx;
+  BusinessRepository(this.ctx);
+
+  static final Map<String, dynamic> _demo = {
+    'name': 'Barbearia Demonstração',
+    'phone': '+5514999990000',
+    'metaPhoneNumberId': '100000000000001',
+    'metaWabaId': '200000000000001',
+  };
+
+  Future<Map<String, dynamic>> get() async {
+    if (ctx.demoMode) return Map.of(_demo);
+    return _asMap(await ctx.api.get('/api/business'));
+  }
+
+  /// API: PATCH /api/business (só o dono). Manda apenas o que foi preenchido.
+  Future<Map<String, dynamic>> update(Map<String, String> fields) async {
+    final body = {
+      for (final e in fields.entries)
+        if (e.value.trim().isNotEmpty) e.key: e.value.trim(),
+    };
+    if (body.isEmpty) return get();
+    if (ctx.demoMode) {
+      _demo.addAll({
+        for (final e in body.entries)
+          if (!e.key.contains('Token') && !e.key.contains('Secret')) e.key: e.value,
+      });
+      return Map.of(_demo);
+    }
+    return _asMap(await ctx.api.patch('/api/business', body: body));
+  }
+}
+
 Map<String, dynamic> _asMap(dynamic data) {
   if (data is Map<String, dynamic>) {
     final inner = data['data'];

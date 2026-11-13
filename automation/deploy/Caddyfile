@@ -1,0 +1,31 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# ConvexaAPI (painel e rotas internas). As rotas /internal ficam só na rede do Docker.
+api.{$DOMAIN} {
+	@internal path /internal/*
+	respond @internal 404
+	reverse_proxy api:3000
+}
+
+# convexa-automacao: API do painel, callback do Google, QR do Pix.
+auto.{$DOMAIN} {
+	reverse_proxy automacao:3100
+}
+
+# n8n: webhooks públicos (WhatsApp, Alexa, Mercado Pago) e editor.
+n8n.{$DOMAIN} {
+	reverse_proxy n8n:5678
+}
+
+# Painel web (build do Flutter em ./painel)
+painel.{$DOMAIN} {
+	root * /srv/painel
+	encode zstd gzip
+	@static path *.js *.wasm *.png *.otf *.ttf *.woff2 *.json
+	header @static Cache-Control "public, max-age=86400"
+	header /index.html Cache-Control "no-cache"
+	try_files {path} /index.html
+	file_server
+}

@@ -12,3 +12,8 @@ pubspec.lock
 .codex/
 .vexp/
 .vscode/
+
+# deploy da automação: segredos e build do painel ficam só no servidor
+automation/deploy/.env
+automation/deploy/painel/*
+!automation/deploy/painel/LEIA.txt

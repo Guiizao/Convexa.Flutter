@@ -1,0 +1,168 @@
+# Convexa em produção num servidor só (VPS com Docker).
+# Sobe: Postgres, ConvexaAPI (do Gabriel, sem alterações), convexa-automacao, n8n,
+# Caddy (HTTPS automático) e o painel web estático.
+# Uso: veja automation/docs/03-configuracao.md
+name: convexa
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: convexa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      POSTGRES_DB: convexa
+      TZ: UTC
+    volumes:
+      - db:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-bancos.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U convexa -d convexa"]
+      interval: 5s
+      retries: 20
+    logging: *logging
+
+  # ---------------------------------------------------------------- ConvexaAPI
+  # Construída a partir do repositório do Gabriel (CONVEXA_API_DIR), sem mudar nada nele.
+  api-migrate:
+    image: convexa-api:local
+    build: &api-build
+      context: ${CONVEXA_API_DIR:-../../../convexaapi}
+      # Instala do zero dentro da imagem (ignora node_modules, dist e .env da máquina).
+      # Mantém o CLI do Prisma porque o api-migrate usa a mesma imagem.
+      dockerfile_inline: |
+        FROM node:22-alpine
+        WORKDIR /app
+        COPY . .
+        RUN rm -rf node_modules dist .env && npm ci && npm run build
+        ENV NODE_ENV=production
+        USER node
+        CMD ["node", "dist/server.js"]
+    command: ["npm", "run", "migrate:deploy"]
+    environment: &api-env
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://convexa:${POSTGRES_PASSWORD}@db:5432/convexa
+      DIRECT_URL: postgresql://convexa:${POSTGRES_PASSWORD}@db:5432/convexa
+      JWT_SECRET: ${JWT_SECRET:?defina no .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?defina no .env}
+      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:?defina no .env}
+      CORS_ORIGINS: https://painel.${DOMAIN}
+      APP_URL: https://painel.${DOMAIN}
+      MAIL_DRIVER: resend
+      RESEND_API_KEY: ${RESEND_API_KEY:?defina no .env}
+      MAIL_FROM: ${MAIL_FROM:?defina no .env}
+      DOCS_ENABLED: "false"
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+    logging: *logging
+
+  api:
+    image: convexa-api:local
+    build: *api-build
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      api-migrate: { condition: service_completed_successfully }
+    logging: *logging
+
+  # ---------------------------------------------------------------- automação
+  automacao-migrate:
+    image: convexa-automacao:local
+    build: &auto-build ../service
+    command: ["node", "dist/db/migrate.js"]
+    environment: &auto-env
+      NODE_ENV: production
+      PORT: "3100"
+      PUBLIC_URL: https://auto.${DOMAIN}
+      PANEL_URL: https://painel.${DOMAIN}
+      DATABASE_URL: postgresql://convexa:${POSTGRES_PASSWORD}@db:5432/convexa_automacao
+      CONVEXA_API_URL: http://api:3000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      AUTOMACAO_KEY: ${AUTOMACAO_KEY:?defina no .env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?defina no .env}
+      N8N_SEND_WEBHOOK_URL: http://n8n:5678/webhook/convexa-enviar
+      N8N_PUBLIC_WEBHOOK_URL: https://n8n.${DOMAIN}/webhook
+      CORS_ORIGINS: https://painel.${DOMAIN}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      ALEXA_SKILL_ID: ${ALEXA_SKILL_ID:-}
+      ALEXA_VERIFY_SIGNATURE: "true"
+      WHATSAPP_REQUIRE_SIGNATURE: "true"
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+    logging: *logging
+
+  automacao:
+    image: convexa-automacao:local
+    build: *auto-build
+    restart: unless-stopped
+    environment: *auto-env
+    depends_on:
+      automacao-migrate: { condition: service_completed_successfully }
+      api: { condition: service_started }
+    logging: *logging
+
+  # ---------------------------------------------------------------- n8n
+  n8n:
+    image: n8nio/n8n:2.47.5
+    container_name: convexa-n8n
+    restart: unless-stopped
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: db
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: convexa
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?defina no .env}
+      N8N_HOST: n8n.${DOMAIN}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://n8n.${DOMAIN}/
+      N8N_PROXY_HOPS: "1"
+      GENERIC_TIMEZONE: America/Sao_Paulo
+      TZ: America/Sao_Paulo
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      # os workflows leem estas variáveis com $env
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      CONVEXA_API_URL: http://api:3000
+      AUTOMACAO_URL: http://automacao:3100
+      GRAPH_API_BASE: https://graph.facebook.com
+      GRAPH_API_VERSION: ${GRAPH_API_VERSION:-v24.0}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:?defina no .env}
+    volumes:
+      - n8n:/home/node/.n8n
+    depends_on:
+      db: { condition: service_healthy }
+    logging: *logging
+
+  # ---------------------------------------------------------------- HTTPS + painel
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?defina no .env}
+      ACME_EMAIL: ${ACME_EMAIL:?defina no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./painel:/srv/painel:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api, automacao, n8n]
+    logging: *logging
+
+volumes:
+  db:
+  n8n:
+  caddy_data:
+  caddy_config:

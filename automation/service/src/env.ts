@@ -17,6 +17,9 @@ const schema = z.object({
   ENCRYPTION_KEY: z.string().min(40),
   // Webhook do n8n que envia um lote de mensagens (ações do painel e da Alexa)
   N8N_SEND_WEBHOOK_URL: z.string().url().optional(),
+  // Endereço público dos webhooks do n8n (ex.: https://n8n.seudominio.com.br/webhook).
+  // O Mercado Pago avisa os pagamentos em <isto>/mercadopago/<businessId>.
+  N8N_PUBLIC_WEBHOOK_URL: z.string().url().optional(),
   CORS_ORIGINS: z
     .string()
     .default("")

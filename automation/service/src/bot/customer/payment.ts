@@ -85,7 +85,8 @@ async function issue(ctx: Ctx, kind: "deposit" | "full") {
         description: `${ctx.biz.businessName} - ${description}`,
         externalReference: txid,
         payerEmail: `cliente.${e164ToWaId(ctx.phone)}@convexa.app`,
-        notificationUrl: `${env().PUBLIC_URL}/v1/webhooks/mercadopago/${ctx.biz.businessId}`,
+        // O aviso entra pelo n8n (workflow "Mercado Pago"), que repassa ao serviço com a chave.
+        notificationUrl: mercadoPagoNotificationUrl(ctx.biz.businessId),
         expiresAt,
       });
       pixCode = charge.qrCode;
@@ -250,4 +251,10 @@ export async function expire(ctx: Ctx, payment: Payment) {
   );
   await ctx.notifyOwner(`⌛ Sinal não pago: liberei o horário de ${payment.customerName ?? formatPhoneBR(payment.customerPhone)} (${s.service}, ${shortDay(s.date, ctx.tz)} ${s.time}).`);
   return true;
+}
+
+/** URL que o Mercado Pago chama quando o Pix é pago. Sem o n8n público, não manda (o dono confirma à mão). */
+export function mercadoPagoNotificationUrl(businessId: string): string | undefined {
+  const base = env().N8N_PUBLIC_WEBHOOK_URL;
+  return base ? `${base.replace(/\/+$/, "")}/mercadopago/${businessId}` : undefined;
 }

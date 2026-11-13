@@ -15,7 +15,7 @@ export async function createPixCharge(input: {
   description: string;
   externalReference: string;
   payerEmail: string;
-  notificationUrl: string;
+  notificationUrl?: string;
   expiresAt: Date;
 }): Promise<MpPix> {
   const res = await fetch(`${API}/v1/payments`, {

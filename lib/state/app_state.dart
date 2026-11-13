@@ -6,6 +6,7 @@ import '../api/api_client.dart';
 import '../api/automation.dart';
 import '../api/repositories.dart';
 import '../api/sample_data.dart';
+import '../api/team.dart';
 import '../core/launch_options.dart';
 import '../core/prefs.dart';
 import '../models/models.dart';
@@ -25,6 +26,7 @@ class AppState extends ChangeNotifier {
     settingsRepo = SettingsRepository(_ctx);
     automation = AutomationRepository(_ctx);
     business = BusinessRepository(_ctx);
+    team = TeamRepository(_ctx);
     // Se há sessão guardada (web), o app abre num splash até o restore terminar,
     // em vez de piscar a tela de login.
     _restoring = _ctx.api.hasStoredSession;
@@ -39,6 +41,7 @@ class AppState extends ChangeNotifier {
   late final SettingsRepository settingsRepo;
   late final AutomationRepository automation;
   late final BusinessRepository business;
+  late final TeamRepository team;
 
   // Padrão: claro e neutro. A escolha do usuário fica salva no aparelho.
   final Prefs _prefs = Prefs();
@@ -459,20 +462,25 @@ class AppState extends ChangeNotifier {
   /// como o backend guarda horário. Abrir/encerrar em si é estado de tela: a
   /// API ainda não tem o conceito de expediente do dia.
   Future<void> _persistHours(WorkShift shift) async {
-    await shifts.saveWeeklyHours([
-      {
-        'dayOfWeek': shift.date.weekday % 7,
-        'opensAt': shift.hours.startMinutes,
-        'closesAt': shift.hours.endMinutes,
-      },
-    ]);
+    await shifts.saveDayHours(
+      shift.date.weekday % 7,
+      shift.hours.startMinutes,
+      shift.hours.endMinutes,
+    );
+    // Pausas viram bloqueios na agenda. Abrir, reabrir e planejar o dia
+    // chamam isto de novo, então pula as que já estão gravadas.
+    final day = DateTime(shift.date.year, shift.date.month, shift.date.day);
+    final existing = shift.breaks.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : await shifts.timeBlocks(day, day.add(const Duration(days: 1)));
+    bool saved(DateTime start, DateTime end) => existing.any((t) =>
+        DateTime.tryParse('${t['startAt']}')?.isAtSameMomentAs(start) == true &&
+        DateTime.tryParse('${t['endAt']}')?.isAtSameMomentAs(end) == true);
     for (final b in shift.breaks) {
-      final day = shift.date;
-      await shifts.addTimeBlock(
-        day.add(Duration(minutes: b.range.startMinutes)),
-        day.add(Duration(minutes: b.range.endMinutes)),
-        reason: b.label,
-      );
+      final start = day.add(Duration(minutes: b.range.startMinutes));
+      final end = day.add(Duration(minutes: b.range.endMinutes));
+      if (saved(start, end)) continue;
+      await shifts.addTimeBlock(start, end, reason: b.label);
     }
   }
 

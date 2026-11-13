@@ -17,6 +17,7 @@ import 'automacao_screen.dart';
 import 'configuracoes_screen.dart';
 import 'dashboard_screen.dart';
 import 'encerrar_screen.dart';
+import 'equipe_screen.dart';
 import 'expediente_screen.dart';
 import 'notifications_panel.dart';
 import 'servicos_screen.dart';
@@ -65,6 +66,12 @@ final navDestinations = <NavDestination>[
     icon: Icons.nightlight_outlined,
     activeIcon: Icons.nightlight_round,
     build: () => const EncerrarScreen(),
+  ),
+  NavDestination(
+    label: 'Equipe',
+    icon: Icons.groups_outlined,
+    activeIcon: Icons.groups_rounded,
+    build: () => const EquipeScreen(),
   ),
   NavDestination(
     label: 'Automação',

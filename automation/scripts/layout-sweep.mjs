@@ -23,6 +23,7 @@ const SCREENS = [
   ["servicos", "?demo=1&tab=servicos"],
   ["resultados", "?demo=1&tab=resultados"],
   ["encerrar", "?demo=1&tab=encerrar"],
+  ["equipe", "?demo=1&tab=equipe"],
   ["automacao", "?demo=1&tab=automacao"],
   ["configuracoes", "?demo=1&tab=configuracoes"],
 ].filter(([n]) => ONLY.length === 0 || ONLY.includes(n));

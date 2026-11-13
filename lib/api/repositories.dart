@@ -353,6 +353,27 @@ class ShiftRepository {
     await ctx.api.put('/api/business/hours', body: {'hours': hours});
   }
 
+  /// Troca só o horário de UM dia da semana. O PUT /api/business/hours
+  /// substitui a semana inteira, então lê a grade atual, troca aquele dia e
+  /// regrava tudo. Antes, abrir o expediente apagava os outros dias.
+  Future<void> saveDayHours(int dayOfWeek, int opensAt, int closesAt) async {
+    if (ctx.demoMode) return;
+    final business = _asMap(await ctx.api.get('/api/business'));
+    final current = (business['hours'] as List? ?? const [])
+        .whereType<Map>()
+        .where((h) => (h['dayOfWeek'] as num?)?.toInt() != dayOfWeek)
+        .map((h) => {
+              'dayOfWeek': (h['dayOfWeek'] as num).toInt(),
+              'opensAt': (h['opensAt'] as num).toInt(),
+              'closesAt': (h['closesAt'] as num).toInt(),
+            })
+        .toList();
+    await saveWeeklyHours([
+      ...current,
+      {'dayOfWeek': dayOfWeek, 'opensAt': opensAt, 'closesAt': closesAt},
+    ]);
+  }
+
   /// API: POST /api/business/closed-days
   /// body { date, reason? } — é o "amanhã é folga" da tela de Encerrar.
   Future<void> closeDay(DateTime date, {String? reason}) async {

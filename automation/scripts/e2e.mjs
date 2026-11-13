@@ -76,7 +76,7 @@ async function limparBloqueiosDoTeste() {
   const blocks = Array.isArray(res) ? res : res.data ?? [];
   let n = 0;
   for (const b of blocks) {
-    if (!/(Bloqueado pelo|Compromisso do) dono/.test(b.reason ?? "")) continue;
+    if (!/(Bloqueado pel[oa]|Compromisso do) (dono|Alexa)/.test(b.reason ?? "")) continue;
     await fetch(`${API}/api/time-blocks/${b.id}`, { method: "DELETE", headers: auth });
     n++;
   }

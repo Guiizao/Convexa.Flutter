@@ -566,6 +566,24 @@ class _RemindersCard extends StatelessWidget {
             description: 'Todo dia de manhã: quem vem, quanto está previsto e comprovantes pendentes.',
             value: get('dailySummary.enabled') == true,
             onChanged: (v) => set('dailySummary.enabled', v),
+            child: get('dailySummary.enabled') == true
+                ? SizedBox(
+                    width: 200,
+                    child: AppSelect<String>(
+                      label: 'Horário do resumo',
+                      value: (get('dailySummary.time') ?? '08:00').toString(),
+                      options: [
+                        // o valor salvo sempre aparece, mesmo fora da lista padrão
+                        for (final h in {
+                          ...const ['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '11:00'],
+                          (get('dailySummary.time') ?? '08:00').toString(),
+                        }.toList()..sort())
+                          (value: h, label: h),
+                      ],
+                      onChanged: (v) => set('dailySummary.time', v ?? '08:00'),
+                    ),
+                  )
+                : null,
           ),
         ],
       ),

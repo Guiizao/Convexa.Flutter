@@ -8,7 +8,7 @@ import { resolveBiz } from "../bot/engine.js";
 import { campaigns } from "../bot/owner/campaigns.js";
 import { systemCtx } from "../jobs/tick.js";
 import type { Out } from "../whatsapp/messages.js";
-import { cap, dia, escapeSsml, firstName, hora, list, reais } from "./speech.js";
+import { aPartir, as, ate, cap, dia, escapeSsml, faixa, firstName, hora, list, reais } from "./speech.js";
 
 type AlexaRequest = {
   session?: { attributes?: Record<string, any>; user?: { userId: string } };
@@ -133,11 +133,11 @@ export async function handleAlexa(gw: Gateway, req: AlexaRequest): Promise<Alexa
     const p = attrs.pending as { kind: string; items?: ops.AgendaItem[]; message?: string };
     if (p.kind === "reschedule" && p.items?.length) {
       await campaigns.create(ctx, "reschedule", p.items, { createdBy: "alexa" });
-      return done(`Feito. Mandei mensagem no WhatsApp ${p.items.length === 1 ? "para o cliente escolher" : `para os ${p.items.length} clientes escolherem`} outro horário. Te aviso por lá.`);
+      return done(`Feito. Mandei mensagem no WhatsApp ${p.items.length === 1 ? `para ${p.items[0]!.customer.name} escolher` : `para os ${p.items.length} clientes escolherem`} outro horário. Te aviso por lá.`);
     }
     if (p.kind === "notice" && p.items?.length && p.message) {
       await campaigns.create(ctx, "notice", p.items, { message: p.message, createdBy: "alexa" });
-      return done(`Pronto, avisei ${p.items.length === 1 ? "o cliente" : `os ${p.items.length} clientes`} pelo WhatsApp.`);
+      return done(`Pronto, avisei ${p.items.length === 1 ? p.items[0]!.customer.name : `os ${p.items.length} clientes`} pelo WhatsApp.`);
     }
   }
   if (intent === "AMAZON.NoIntent" && attrs.pending) return done("Tudo bem, não mandei nada.");
@@ -158,13 +158,13 @@ export async function handleAlexa(gw: Gateway, req: AlexaRequest): Promise<Alexa
     case "ProximoClienteIntent": {
       const a = await ops.nextAppointment(owner, tz);
       if (!a) return done("Não tem mais nenhum cliente marcado nos próximos dias.");
-      return done(`O próximo é ${a.customer.name}, ${dia(a.date, tz)} às ${hora(a.start)}, para ${a.service} com ${a.employee}.`);
+      return done(`O próximo é ${a.customer.name}, ${dia(a.date, tz)} ${as(a.start)}, para ${a.service} com ${a.employee}.`);
     }
     case "HorariosLivresIntent": {
       const date = dateSlot(slot(req, "dia"), tz);
       const r = (await ops.freeWindows(owner, tz, date)).filter((e) => e.windows.length);
       if (r.length === 0) return done(`${cap(dia(date, tz))} a agenda está cheia.`);
-      const parts = r.map((e) => `${e.employee}: ${list(e.windows.slice(0, 4).map((w) => `das ${hora(w.start)} às ${hora(w.end)}`))}`);
+      const parts = r.map((e) => `${e.employee}: ${list(e.windows.slice(0, 4).map((w) => faixa(w.start, w.end)))}`);
       return done(`Horários livres ${dia(date, tz)}. ${parts.join(". ")}.`);
     }
     case "FaturamentoIntent":
@@ -185,6 +185,12 @@ export async function handleAlexa(gw: Gateway, req: AlexaRequest): Promise<Alexa
       const date = dateSlot(slot(req, "dia"), tz);
       let start = timeSlot(slot(req, "inicio") ?? slot(req, "hora"));
       let end = timeSlot(slot(req, "fim"));
+      // "amanhã ao meio-dia vou estar ocupado": só a hora de início, bloqueia 1 hora
+      let assumedHour = false;
+      if (intent === "BloquearIntent" && start !== undefined && end === undefined) {
+        end = Math.min(start + 60, 24 * 60 - 1);
+        assumedHour = true;
+      }
       if (intent === "SairMaisCedoIntent") end = 24 * 60 - 1;
       if (intent === "ChegarMaisTardeIntent") {
         end = start;
@@ -194,9 +200,10 @@ export async function handleAlexa(gw: Gateway, req: AlexaRequest): Promise<Alexa
         return { alexa: speak("Não entendi o horário. Diga por exemplo: bloqueia amanhã das duas às quatro da tarde.", { end: false }), outbound: [] };
       }
       const res = await ops.blockTime(owner, tz, { date, startMin: start, endMin: end, employeeId: biz.settings.ownerEmployeeId ?? undefined, reason: "Bloqueado pela Alexa" });
-      const what = end >= 24 * 60 - 1 ? `a partir das ${hora(hhmm(start))}` : start === 0 ? `até as ${hora(hhmm(end))}` : `das ${hora(hhmm(start))} às ${hora(hhmm(end))}`;
-      if (res.conflicts.length === 0) return done(`Bloqueei ${dia(date, tz)} ${what}. Não tinha ninguém marcado nesse intervalo.`);
-      const names = list(res.conflicts.map((a) => `${firstName(a.customer.name)} às ${hora(a.start)}`));
+      const what = end >= 24 * 60 - 1 ? aPartir(hhmm(start)) : start === 0 ? ate(hhmm(end)) : faixa(hhmm(start), hhmm(end));
+      const hint = assumedHour ? " Bloqueei uma hora; se precisar de mais, diga por exemplo: bloqueia das duas às quatro." : "";
+      if (res.conflicts.length === 0) return done(`Bloqueei ${dia(date, tz)} ${what}. Não tinha ninguém marcado nesse intervalo.${hint}`);
+      const names = list(res.conflicts.map((a) => `${firstName(a.customer.name)} ${as(a.start)}`));
       return ask(`Bloqueei ${dia(date, tz)} ${what}. Mas ${res.conflicts.length === 1 ? "tem um cliente marcado" : `tem ${res.conflicts.length} clientes marcados`}: ${names}. Quer que eu peça pelo WhatsApp para remarcarem?`, {
         pending: { kind: "reschedule", items: res.conflicts },
       });

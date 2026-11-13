@@ -226,7 +226,7 @@ async function doBlock(ctx: Ctx) {
   ctx.set(FLOW, "block_conflicts", { blockId: res.blockId, conflicts: res.conflicts, label });
   const lines = res.conflicts.map((a) => `• ${a.start} ${a.customer.name} — ${a.service}`);
   ctx.buttons(
-    `🔒 Bloqueei ${label}. Mas ${res.conflicts.length === 1 ? "tem 1 cliente marcado" : `tem ${res.conflicts.length} clientes marcados`} nesse intervalo:\n\n${lines.join("\n")}\n\nO que eu faço com ${res.conflicts.length === 1 ? "ele" : "eles"}?`,
+    `🔒 Bloqueei ${label}. Mas ${res.conflicts.length === 1 ? "tem 1 cliente marcado" : `tem ${res.conflicts.length} clientes marcados`} nesse intervalo:\n\n${lines.join("\n")}\n\nO que eu faço com ${res.conflicts.length === 1 ? "esse horário" : "esses horários"}?`,
     [
       { id: "ob:resched", title: "Pedir p/ remarcar" },
       { id: "ob:cancel", title: "Cancelar e avisar" },
@@ -246,7 +246,7 @@ async function onConflictChoice(ctx: Ctx, choice: "resched" | "cancel" | "keep")
     await campaigns.create(ctx, "reschedule", data.conflicts, { reason: undefined, createdBy: "whatsapp" });
     ctx.reset();
     ctx.say(
-      `📨 Mandei mensagem para ${data.conflicts.length === 1 ? "o cliente" : `os ${data.conflicts.length} clientes`} pedindo para escolher outro horário. ` +
+      `📨 Mandei mensagem para ${data.conflicts.length === 1 ? data.conflicts[0]!.customer.name : `os ${data.conflicts.length} clientes`} pedindo para escolher outro horário. ` +
         "Te aviso aqui conforme cada um responder.",
     );
     return;
@@ -262,7 +262,7 @@ async function onConflictChoice(ctx: Ctx, choice: "resched" | "cancel" | "keep")
     createdBy: "whatsapp",
   });
   ctx.reset();
-  ctx.say(`❌ Cancelei ${data.conflicts.length === 1 ? "o agendamento" : `os ${data.conflicts.length} agendamentos`} e avisei ${data.conflicts.length === 1 ? "o cliente" : "os clientes"}.`);
+  ctx.say(`❌ Cancelei ${data.conflicts.length === 1 ? "o agendamento" : `os ${data.conflicts.length} agendamentos`} e avisei ${data.conflicts.length === 1 ? data.conflicts[0]!.customer.name : "todos pelo WhatsApp"}.`);
 }
 
 // ------------------------------------------------------------------ avisos
@@ -445,10 +445,10 @@ export async function onOwnerReply(ctx: Ctx, id: string): Promise<boolean> {
     if (!p || p.businessId !== ctx.biz.businessId) return (ctx.say("Pagamento não encontrado."), true);
     if (m[1] === "ok") {
       const done = await markPaid(ctx, p, `whatsapp:${ctx.phone}`);
-      ctx.say(done ? `✅ Aprovado. Avisei ${p.customerName ?? "o cliente"} que o horário está confirmado.` : "Esse pagamento já tinha sido resolvido.");
+      ctx.say(done ? `✅ Aprovado. Avisei ${p.customerName ?? "quem pagou"} que o horário está confirmado.` : "Esse pagamento já tinha sido resolvido.");
     } else {
       const done = await reject(ctx, p, `whatsapp:${ctx.phone}`);
-      ctx.say(done ? `Recusado. Pedi para ${p.customerName ?? "o cliente"} conferir o Pix e mandar de novo.` : "Esse pagamento já tinha sido resolvido.");
+      ctx.say(done ? `Recusado. Pedi para ${p.customerName ?? "quem pagou"} conferir o Pix e mandar de novo.` : "Esse pagamento já tinha sido resolvido.");
     }
     return true;
   }

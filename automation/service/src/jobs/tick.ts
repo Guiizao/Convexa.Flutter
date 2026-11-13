@@ -147,7 +147,7 @@ async function dailySummary(ctx: Ctx) {
   const lines = [
     `☀️ Bom dia! Resumo de hoje na *${ctx.biz.businessName}*:`,
     "",
-    items.length ? `${items.length} ${items.length === 1 ? "cliente" : "clientes"} marcados, ${brl(total)} previstos.` : "Nenhum cliente marcado ainda.",
+    items.length ? `${items.length} ${items.length === 1 ? "cliente marcado" : "clientes marcados"}, ${brl(total)} previstos.` : "Nenhum cliente marcado ainda.",
     ...items.slice(0, 12).map((a) => `• ${a.start} ${a.customer.name.split(" ")[0]} — ${a.service}`),
   ];
   if (pend.length) lines.push("", `🧾 ${pend.length} comprovante(s) esperando aprovação.`);

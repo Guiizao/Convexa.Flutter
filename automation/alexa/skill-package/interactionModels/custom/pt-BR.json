@@ -156,7 +156,14 @@
             "fecha a agenda {dia} das {inicio} às {fim}",
             "reserva {dia} das {inicio} até {fim}",
             "bloqueia das {inicio} às {fim} {dia}",
-            "{dia} das {inicio} às {fim} vou estar ocupado"
+            "{dia} das {inicio} às {fim} vou estar ocupado",
+            "{dia} ao {inicio} vou estar ocupado",
+            "{dia} às {inicio} vou estar ocupado",
+            "vou estar ocupado {dia} às {inicio}",
+            "vou estar ocupado {dia} ao {inicio}",
+            "bloqueia {dia} às {inicio}",
+            "{dia} ao {inicio} tenho um compromisso",
+            "tenho um compromisso {dia} às {inicio}"
           ]
         },
         {

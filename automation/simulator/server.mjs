@@ -179,6 +179,7 @@ async function toWebhook(waId, name, message, opts = {}) {
   if (!opts.statuses) {
     // a janela de 24h vale para o número como a Meta entregou (com ou sem o 9º dígito)
     lastInbound[opts.fromWaId ?? waId] = Date.now();
+    if (opts.fromWaId) lastInbound[waId] = Date.now(); // o mesmo WhatsApp, nos dois formatos
     saveState();
   }
   const res = await postWebhook(webhookPayload(waId, name, message, opts), opts);

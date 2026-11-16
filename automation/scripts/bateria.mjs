@@ -36,6 +36,8 @@ if (process.env.API_DB_URL && /Navalha/.test(status0.business.name)) {
   apiSql(`UPDATE "Appointment" SET status = 'CANCELLED' WHERE "businessId" = '${BIZ}' AND "startAt" > now() AND status IN ('SCHEDULED','CONFIRMED')`);
   apiSql(`DELETE FROM "TimeBlock" WHERE "businessId" = '${BIZ}' AND "endAt" > now()`);
   apiSql(`UPDATE "Business" SET "monthlyMessageLimit" = NULL WHERE id = '${BIZ}'`);
+  // serviço de nome comprido criado pelo teste de robustez, se uma rodada anterior parou no meio
+  apiSql(`UPDATE "Service" SET active = false WHERE "businessId" = '${BIZ}' AND name LIKE 'Hidratação capilar profunda%'`);
 }
 if (process.env.AUTOMACAO_DB_URL) sql(`UPDATE payment SET status = 'expired' WHERE business_id = '${BIZ}' AND status IN ('pending','under_review')`);
 await sim("/api/rejections", undefined, "DELETE");
@@ -692,12 +694,14 @@ if (runs("robustez")) {
     const c = novoCliente("Nono Digito");
     await agendarEConfirmar(c, "corte sexta às 9h");
     const sem9 = c.waId.slice(0, 4) + c.waId.slice(5); // 55 14 9XXXX-XXXX -> 55 14 XXXX-XXXX
-    const old = { waId: sem9, name: c.name };
-    const since = await lastSeq(sem9);
+    const since = await lastSeq(c.waId);
     await sim("/api/send", { waId: c.waId, name: c.name, text: "meus horários", opts: { fromWaId: sem9 } });
-    const r = await waitBot(old, since);
+    // o bot responde no número completo (+55 14 9XXXX-XXXX): a Meta entrega no mesmo WhatsApp
+    const r = await waitBot(c, since);
     check("mensagem vinda sem o 9 acha o agendamento do mesmo cliente", /09:00/.test(text(r)) && /Corte/.test(text(r)), text(r));
-    check("a resposta vai para o número como o WhatsApp entregou (sem o 9)", r.length > 0, "nada chegou no número sem o 9");
+    const convs = (await panel("GET", "/conversations")).body.data ?? [];
+    const mine = convs.filter((x) => x.phone === "+" + c.waId || x.phone === "+" + sem9);
+    check("no painel continua uma conversa só para esse cliente, no formato com o 9", mine.length === 1 && mine[0].phone === "+" + c.waId, JSON.stringify(mine));
   });
 
   await scenario("Robustez", "Mensagem sem telefone (usuário com username do WhatsApp): não quebra", async () => {

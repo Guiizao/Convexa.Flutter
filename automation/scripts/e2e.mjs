@@ -83,6 +83,8 @@ async function limparBloqueiosDoTeste() {
   console.log(`(limpeza: ${n} bloqueio(s) de rodadas anteriores removido(s))`);
 }
 await limparBloqueiosDoTeste();
+// O dono escreve primeiro: abre a janela de 24h dele (a Meta só entrega mensagem livre a quem escreveu há menos de 24h).
+await talk(OWNER, { text: "menu" });
 
 await step("Cliente agenda por texto livre (serviço + dia + hora numa frase)", async () => {
   let r = await talk(cliente, { text: "oi! queria marcar barba quinta às 16h" });
@@ -156,5 +158,7 @@ await step("Atendimento humano", async () => {
   await talk(OWNER, button(n, /Reativar bot/));
 });
 
+const recusas = await api("/api/rejections");
+check("a Meta (simulada) não recusou nenhuma mensagem do bot", recusas.length === 0, recusas.map((r) => `${r.to} ${r.type}: ${r.message}`).join("\n"));
 console.log(failures ? `\n${failures} verificação(ões) falharam` : "\nTudo certo ✅");
 process.exitCode = failures ? 1 : 0;

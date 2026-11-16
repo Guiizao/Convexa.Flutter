@@ -4,7 +4,8 @@
 //  - Tela de chat em http://localhost:3200 e API para testes automáticos
 // Sem dependências: só Node 20+.
 import { createHmac, randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,16 @@ const chats = new Map();
 const media = new Map(); // id -> { mime, data }
 const sse = new Set();
 let seq = 0;
+
+// Última mensagem recebida de cada número: a Meta só aceita mensagem livre (não-modelo)
+// para quem escreveu nas últimas 24h. Fica em arquivo para sobreviver a um reinício do simulador.
+const stateFile = process.env.STATE_FILE ?? join(tmpdir(), `convexa-simulador-${cfg.phoneNumberId}.json`);
+/** @type {Record<string, number>} */
+const lastInbound = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")) : {};
+const saveState = () => writeFileSync(stateFile, JSON.stringify(lastInbound));
+const windowOpen = (waId) => Date.now() - (lastInbound[waId] ?? 0) < 24 * 3600_000;
+/** Tudo o que a "Meta" recusou, para os testes conferirem que nada foi rejeitado. */
+const rejections = [];
 
 function chat(waId, name) {
   let c = chats.get(waId);
@@ -67,30 +78,77 @@ function render(graph) {
 function validate(graph) {
   // Os mesmos limites que a Meta aplica: o simulador recusa o que a Meta recusaria
   const errs = [];
+  const dup = (list) => list.find((x, i) => list.indexOf(x) !== i);
+  if (!/^\d{10,15}$/.test(String(graph.to ?? ""))) errs.push(`destinatário inválido: ${graph.to}`);
   if (graph.type === "interactive") {
     const i = graph.interactive;
-    if ((i.body?.text ?? "").length > 1024) errs.push("body > 1024");
+    const body = i.body?.text ?? "";
+    if (!body.trim()) errs.push("body vazio");
+    if (body.length > 1024) errs.push("body > 1024");
+    if ((i.header?.text ?? "").length > 60) errs.push("header > 60");
+    if ((i.footer?.text ?? "").length > 60) errs.push("footer > 60");
     if (i.type === "button") {
-      if (i.action.buttons.length > 3) errs.push("mais de 3 botões");
-      for (const b of i.action.buttons) if (b.reply.title.length > 20) errs.push(`botão "${b.reply.title}" > 20`);
-    }
-    if (i.type === "list") {
-      if (i.action.button.length > 20) errs.push("texto do botão da lista > 20");
-      const rows = i.action.sections.flatMap((s) => s.rows);
-      if (rows.length > 10) errs.push("lista com mais de 10 linhas");
-      for (const r of rows) {
-        if (r.title.length > 24) errs.push(`linha "${r.title}" > 24`);
-        if ((r.description ?? "").length > 72) errs.push(`descrição > 72`);
+      const btns = i.action?.buttons ?? [];
+      if (btns.length < 1 || btns.length > 3) errs.push(`botões: ${btns.length} (aceita de 1 a 3)`);
+      for (const b of btns) {
+        if (!b.reply?.title?.trim()) errs.push("botão sem título");
+        if ((b.reply?.title ?? "").length > 20) errs.push(`botão "${b.reply.title}" > 20`);
+        if (!b.reply?.id || b.reply.id.length > 256) errs.push("id de botão vazio ou > 256");
       }
-      if (i.action.sections.length > 1 && i.action.sections.some((s) => !s.title)) errs.push("seção sem título");
+      if (dup(btns.map((b) => b.reply?.id))) errs.push(`id de botão repetido: ${dup(btns.map((b) => b.reply?.id))}`);
+      if (dup(btns.map((b) => b.reply?.title))) errs.push(`título de botão repetido: ${dup(btns.map((b) => b.reply?.title))}`);
+    } else if (i.type === "list") {
+      const label = i.action?.button ?? "";
+      if (!label.trim() || label.length > 20) errs.push("texto do botão da lista vazio ou > 20");
+      const sections = i.action?.sections ?? [];
+      const rows = sections.flatMap((s) => s.rows ?? []);
+      if (sections.length < 1 || sections.length > 10) errs.push(`seções: ${sections.length} (aceita de 1 a 10)`);
+      if (rows.length < 1 || rows.length > 10) errs.push(`linhas: ${rows.length} (aceita de 1 a 10 no total)`);
+      for (const r of rows) {
+        if (!r.title?.trim()) errs.push("linha sem título");
+        if ((r.title ?? "").length > 24) errs.push(`linha "${r.title}" > 24`);
+        if ((r.description ?? "").length > 72) errs.push(`descrição "${r.description}" > 72`);
+        if (!r.id || r.id.length > 200) errs.push("id de linha vazio ou > 200");
+      }
+      if (dup(rows.map((r) => r.id))) errs.push(`id de linha repetido: ${dup(rows.map((r) => r.id))}`);
+      for (const s of sections) if ((s.title ?? "").length > 24) errs.push(`título de seção "${s.title}" > 24`);
+      if (sections.length > 1 && sections.some((s) => !s.title)) errs.push("seção sem título");
+    } else errs.push(`tipo interativo não suportado: ${i.type}`);
+  } else if (graph.type === "text") {
+    if (!graph.text?.body?.trim()) errs.push("texto vazio");
+    if ((graph.text?.body ?? "").length > 4096) errs.push("texto > 4096");
+  } else if (graph.type === "image") {
+    if (!/^https?:\/\//.test(graph.image?.link ?? "")) errs.push("imagem sem link http(s)");
+    if ((graph.image?.caption ?? "").length > 1024) errs.push("legenda > 1024");
+  } else if (graph.type === "template") {
+    const t = templates[graph.template?.name];
+    if (!t) return [`(#132001) modelo "${graph.template?.name}" não existe ou não foi aprovado`];
+    if (graph.template.language?.code !== "pt_BR") errs.push(`(#132001) idioma ${graph.template.language?.code} não existe para o modelo`);
+    const expected = new Set(t.body.match(/\{\{\d+\}\}/g) ?? []).size;
+    const params = ((graph.template.components ?? []).find((c) => c.type === "body")?.parameters ?? []).map((x) => x.text);
+    if (params.length !== expected) errs.push(`(#132000) modelo espera ${expected} variáveis, vieram ${params.length}`);
+    for (const x of params) {
+      if (typeof x !== "string" || !x.trim()) errs.push("(#131008) variável de modelo vazia");
+      else if (/[\n\t]| {5,}/.test(x)) errs.push("(#132018) variável com quebra de linha, tab ou mais de 4 espaços seguidos");
     }
-  }
-  if (graph.type === "text" && graph.text.body.length > 4096) errs.push("texto > 4096");
+    const filled = t.body.replace(/\{\{(\d+)\}\}/g, (_, n) => params[Number(n) - 1] ?? "");
+    if (filled.length > 1024) errs.push("(#132005) texto do modelo preenchido > 1024");
+    const btns = (graph.template.components ?? []).filter((c) => c.type === "button");
+    for (const c of btns) {
+      if (Number(c.index) >= t.buttons.length) errs.push(`(#132000) botão ${c.index} não existe no modelo`);
+      if ((c.parameters?.[0]?.payload ?? "").length > 128) errs.push("payload do botão > 128");
+    }
+  } else errs.push(`tipo não suportado pelo simulador: ${graph.type}`);
   return errs;
 }
 
-async function toWebhook(waId, name, message) {
-  const payload = {
+function webhookPayload(waId, name, message, opts = {}) {
+  // opts.fromWaId: o WhatsApp às vezes entrega celular do Brasil sem o 9º dígito
+  // opts.omitFrom: usuário com "username" — a Meta manda só o user_id (BSUID), sem telefone
+  const from = opts.fromWaId ?? waId;
+  const contact = opts.omitFrom ? { profile: { name }, user_id: `BR.${waId}` } : { profile: { name }, wa_id: from };
+  const msg = { ...(opts.omitFrom ? { from_user_id: `BR.${waId}` } : { from }), id: opts.wamid ?? `wamid.SIM${randomUUID().replace(/-/g, "")}`, timestamp: String(Math.floor(Date.now() / 1000)), ...message };
+  return {
     object: "whatsapp_business_account",
     entry: [
       {
@@ -101,25 +159,45 @@ async function toWebhook(waId, name, message) {
             value: {
               messaging_product: "whatsapp",
               metadata: { display_phone_number: cfg.displayPhone, phone_number_id: cfg.phoneNumberId },
-              contacts: [{ profile: { name }, wa_id: waId }],
-              messages: [{ from: waId, id: `wamid.SIM${randomUUID().replace(/-/g, "")}`, timestamp: String(Math.floor(Date.now() / 1000)), ...message }],
+              ...(opts.statuses ? { statuses: opts.statuses } : { contacts: [contact], messages: [msg] }),
             },
           },
         ],
       },
     ],
   };
+}
+
+async function postWebhook(payload, { badSignature = false, noSignature = false } = {}) {
   const raw = JSON.stringify(payload);
-  const signature = "sha256=" + createHmac("sha256", cfg.appSecret).update(raw).digest("hex");
-  const res = await fetch(cfg.webhookUrl, { method: "POST", headers: { "Content-Type": "application/json", "X-Hub-Signature-256": signature }, body: raw });
+  const signature = "sha256=" + createHmac("sha256", badSignature ? "segredo-errado" : cfg.appSecret).update(raw).digest("hex");
+  const res = await fetch(cfg.webhookUrl, { method: "POST", headers: { "Content-Type": "application/json", ...(noSignature ? {} : { "X-Hub-Signature-256": signature }) }, body: raw });
+  return res;
+}
+
+async function toWebhook(waId, name, message, opts = {}) {
+  if (!opts.statuses) {
+    lastInbound[waId] = Date.now();
+    saveState();
+  }
+  const res = await postWebhook(webhookPayload(waId, name, message, opts), opts);
   if (!res.ok) throw new Error(`n8n respondeu ${res.status}: ${await res.text()}`);
 }
 
-async function userSends({ waId, name, text, replyId, title, kind, image }) {
+async function userSends({ waId, name, text, replyId, title, kind, image, raw, file, opts }) {
   const c = chat(waId, name);
   let message;
   let shown;
-  if (image) {
+  if (raw) {
+    // mensagem crua, no formato da Meta (áudio, figurinha, localização, reação...)
+    message = raw;
+    if (file) {
+      const id = `SIMMEDIA${randomUUID().replace(/-/g, "")}`;
+      media.set(id, { mime: file.mime, data: Buffer.from(file.base64, "base64") });
+      message = { ...raw, [raw.type]: { ...(raw[raw.type] ?? {}), id, mime_type: file.mime, sha256: "sim" } };
+    }
+    shown = { kind: raw.type, text: raw[raw.type]?.caption ?? `[${raw.type}]` };
+  } else if (image) {
     const id = `SIMMEDIA${randomUUID().replace(/-/g, "")}`;
     const [meta, b64] = image.split(",");
     const mime = meta.match(/data:(.*?);base64/)?.[1] ?? "image/jpeg";
@@ -137,7 +215,7 @@ async function userSends({ waId, name, text, replyId, title, kind, image }) {
     shown = { kind: "text", text };
   }
   push(waId, { from: "user", ...shown });
-  await toWebhook(waId, c.name, message);
+  await toWebhook(waId, c.name, message, opts ?? {});
 }
 
 // --------------------------------------------------------------------- HTTP
@@ -161,8 +239,16 @@ createServer(async (req, res) => {
       if (!authorized(req)) return json(res, 401, { error: { message: "Invalid OAuth access token", code: 190 } });
       if (m[1] !== cfg.phoneNumberId) return json(res, 400, { error: { message: "Unsupported phone number id", code: 100 } });
       const graph = JSON.parse(await readBody(req));
+      const reject = (code, message) => {
+        rejections.push({ at: new Date().toISOString(), to: graph.to, type: graph.type, code, message, body: graph });
+        return json(res, 400, { error: { message, code, type: "OAuthException" } });
+      };
       const errs = validate(graph);
-      if (errs.length) return json(res, 400, { error: { message: `(#131009) Parameter value is not valid: ${errs.join("; ")}`, code: 131009 } });
+      if (errs.length) return reject(131009, `(#131009) Parameter value is not valid: ${errs.join("; ")}`);
+      // Fora da janela de 24h a Meta só entrega modelo aprovado
+      if (graph.type !== "template" && !windowOpen(graph.to)) {
+        return reject(131047, "(#131047) Re-engagement message: more than 24 hours have passed since the customer last replied to this number");
+      }
       const wamid = `wamid.OUT${randomUUID().replace(/-/g, "")}`;
       push(graph.to, { from: "bot", wamid, ...render(graph), raw: graph });
       return json(res, 200, { messaging_product: "whatsapp", contacts: [{ input: graph.to, wa_id: graph.to }], messages: [{ id: wamid }] });
@@ -197,6 +283,23 @@ createServer(async (req, res) => {
       const body = JSON.parse(await readBody(req));
       await userSends(body);
       return json(res, 200, { ok: true, seq });
+    }
+    if (url.pathname === "/api/rejections") {
+      if (req.method === "DELETE") rejections.length = 0;
+      return json(res, 200, rejections);
+    }
+    // Faz de conta que o cliente não escreve há N horas (para testar a janela de 24h)
+    if (url.pathname === "/api/age" && req.method === "POST") {
+      const { waId, hours } = JSON.parse(await readBody(req));
+      lastInbound[waId] = Date.now() - hours * 3600_000;
+      saveState();
+      return json(res, 200, { ok: true, windowOpen: windowOpen(waId) });
+    }
+    // Webhook cru: assinatura errada, sem assinatura, status de entrega, payload qualquer
+    if (url.pathname === "/api/webhook" && req.method === "POST") {
+      const { waId, name, message, opts, payload } = JSON.parse(await readBody(req));
+      const r = await postWebhook(payload ?? webhookPayload(waId, name ?? waId, message, opts ?? {}), opts ?? {});
+      return json(res, 200, { status: r.status, body: (await r.text()).slice(0, 300) });
     }
     if (url.pathname === "/api/reset" && req.method === "POST") {
       chats.clear();

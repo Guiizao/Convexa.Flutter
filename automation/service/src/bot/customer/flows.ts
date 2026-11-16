@@ -4,12 +4,13 @@ import { brl } from "../../lib/money.js";
 import { formatPhoneBR } from "../../lib/phone.js";
 import { capitalize, norm } from "../../lib/text.js";
 import { WEEKDAYS_FULL, hhmm, wall } from "../../lib/time.js";
+import { parseWhen } from "../../nlu/datetime.js";
 import { payments } from "../../payments/repo.js";
 import { dayLabel, dayShort } from "../agenda.js";
 import type { Ctx } from "../context.js";
 import { conversations } from "../conversations.js";
 import { yesNo } from "../nlu.js";
-import { startBooking, startReschedule } from "./booking.js";
+import { mentionsWhen, startBooking, startReschedule } from "./booking.js";
 
 // ------------------------------------------------------------------ menu
 export async function greet(ctx: Ctx, opts: { withMenu?: boolean } = {}) {
@@ -28,11 +29,19 @@ export async function greet(ctx: Ctx, opts: { withMenu?: boolean } = {}) {
   }
   lines.push("", "Como posso ajudar?");
   if (opts.withMenu === false) return ctx.say(lines.join("\n"));
-  menu(ctx, lines.join("\n"), !!next);
+  await menu(ctx, lines.join("\n"), !!next);
 }
 
-export function menu(ctx: Ctx, body = "Como posso ajudar?", hasAppointment = true) {
+/** Menu principal. Remarcar e Cancelar só aparecem para quem tem horário marcado. */
+export async function menu(ctx: Ctx, body = "Como posso ajudar?", hasAppointment?: boolean) {
   ctx.reset();
+  if (hasAppointment === undefined) {
+    try {
+      hasAppointment = (await (await ctx.customer()).appointments()).length > 0;
+    } catch {
+      hasAppointment = false;
+    }
+  }
   const rows = [
     { id: "m:book", title: "Agendar horário", description: `Escolha ${ctx.v.service}, dia e horário` },
     { id: "m:mine", title: "Meus horários", description: "Ver o que está marcado" },
@@ -166,10 +175,13 @@ async function doCancel(ctx: Ctx, id: string) {
 // ------------------------------------------------------------------ remarcar
 export async function startResched(ctx: Ctx, text?: string) {
   const a = await pickAppointment(ctx, "resched", text);
-  if (a) await askResched(ctx, a);
+  if (!a) return;
+  // Só aproveita o dia da frase quando há um único horário: com vários, "o de sexta" serve para escolher qual.
+  const single = (await (await ctx.customer()).appointments()).length === 1;
+  await askResched(ctx, a, single ? text : undefined);
 }
 
-async function askResched(ctx: Ctx, a: ConvAppointment) {
+async function askResched(ctx: Ctx, a: ConvAppointment, text?: string) {
   if (tooLate(ctx, a)) {
     const w = wall(a.startAt, ctx.tz);
     ctx.reset();
@@ -179,12 +191,23 @@ async function askResched(ctx: Ctx, a: ConvAppointment) {
     );
     return;
   }
+  // "quero remarcar para sexta às 17h": o novo dia já veio na frase, vai direto para ele
+  if (text && newWhen(ctx, a, text)) return startReschedule(ctx, a, {}, text);
   ctx.set("resched", "what", { appointmentId: a.id });
   ctx.buttons(`O que você quer mudar em ${a.service.name} (${dayShort(ctx, wall(a.startAt, ctx.tz).date)} às ${wall(a.startAt, ctx.tz).time})?`, [
     { id: `r:time:${a.id}`, title: "Dia ou horário" },
     { id: `r:svc:${a.id}`, title: `Trocar ${ctx.v.service}`.slice(0, 20) },
     { id: "x:no", title: "Deixa como está" },
   ]);
+}
+
+/** A frase traz um dia ou hora DIFERENTE do horário atual? ("não posso ir amanhã" cita o dia atual, não o novo.) */
+function newWhen(ctx: Ctx, a: ConvAppointment, text: string): boolean {
+  const when = parseWhen(text, ctx.tz);
+  const now = wall(a.startAt, ctx.tz);
+  if (when.time !== undefined || when.range) return true;
+  if (when.date) return when.date !== now.date;
+  return !!when.period;
 }
 
 async function findMine(ctx: Ctx, id: string) {
@@ -247,7 +270,7 @@ export async function handoff(ctx: Ctx, lastText?: string) {
 
 // ------------------------------------------------------------------ respostas
 export async function onFlowReply(ctx: Ctx, id: string): Promise<boolean> {
-  if (id === "m:menu") return (menu(ctx), true);
+  if (id === "m:menu") return menu(ctx).then(() => true);
   if (id === "m:book") return startBooking(ctx).then(() => true);
   if (id === "m:mine") return myAppointments(ctx).then(() => true);
   if (id === "m:cancel") return startCancel(ctx).then(() => true);
@@ -288,6 +311,11 @@ export async function onFlowText(ctx: Ctx, text: string): Promise<boolean> {
     const yn = yesNo(text);
     if (yn === "yes") return doCancel(ctx, ctx.data.appointmentId).then(() => true);
     if (yn === "no") return onFlowReply(ctx, "x:no");
+  }
+  // Na pergunta "o que você quer mudar?", responder "sexta às 17h" já é a mudança de dia e horário
+  if (flow === "resched" && ctx.state.step === "what" && ctx.data.appointmentId && mentionsWhen(ctx, text)) {
+    const a = await findMine(ctx, ctx.data.appointmentId);
+    if (a && newWhen(ctx, a, text)) return startReschedule(ctx, a, {}, text).then(() => true);
   }
   if ((flow === "cancel" || flow === "resched") && ctx.state.step === "pick") {
     const kind = flow === "cancel" ? "cancel" : "resched";

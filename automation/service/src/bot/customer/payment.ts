@@ -225,7 +225,7 @@ export async function reject(ctx: Ctx, payment: Payment, decidedBy: string) {
   await ctx.to(
     payment.customerPhone,
     wa.text(payment.customerPhone, body),
-    wa.template(payment.customerPhone, "convexa_aviso", [payment.customerName ?? "", ctx.biz.businessName, `${shortDay(payment.summary.date, ctx.tz)} ${payment.summary.time}`, "não conseguimos confirmar o seu pagamento, responda esta mensagem"], ["m:menu"], `[template] ${body}`),
+    wa.template(payment.customerPhone, "convexa_aviso", [(payment.customerName ?? "").split(" ")[0] || "cliente", ctx.biz.businessName, `${shortDay(payment.summary.date, ctx.tz)} ${payment.summary.time}`, "não conseguimos confirmar o seu pagamento, responda esta mensagem"], ["m:menu"], `[template] ${body}`),
   );
   return true;
 }

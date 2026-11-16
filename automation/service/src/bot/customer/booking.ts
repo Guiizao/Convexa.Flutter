@@ -79,6 +79,17 @@ async function absorb(ctx: Ctx, text: string): Promise<boolean> {
   return changed;
 }
 
+/** A frase cita um serviço da casa ou um dia/hora? Então é pedido de horário, mesmo sem "agendar". */
+export async function looksLikeBooking(ctx: Ctx, text: string): Promise<boolean> {
+  const when = parseWhen(text, ctx.tz);
+  if (when.date || when.time !== undefined || when.period) return true;
+  try {
+    return !!findByName(text, await services(ctx), (s) => s.name);
+  } catch {
+    return false;
+  }
+}
+
 export async function startBooking(ctx: Ctx, text?: string, extra: Partial<BookData> = {}) {
   ctx.set(FLOW, "service", {});
   ctx.state.data = { ...extra };
@@ -460,7 +471,7 @@ export async function reprompt(ctx: Ctx) {
 }
 
 /** Usado pelo remarcar e pela campanha do dono. */
-export async function startReschedule(ctx: Ctx, appt: ConvAppointment, extra: Partial<BookData> = {}) {
+export async function startReschedule(ctx: Ctx, appt: ConvAppointment, extra: Partial<BookData> = {}, text?: string) {
   ctx.set(FLOW, "day", {});
   ctx.state.data = {
     serviceId: appt.service.id,
@@ -471,7 +482,15 @@ export async function startReschedule(ctx: Ctx, appt: ConvAppointment, extra: Pa
     rescheduleId: appt.id,
     ...extra,
   } satisfies BookData;
+  // "remarcar para sexta às 17h": já aproveita o dia e a hora da frase
+  if (text) await absorb(ctx, text);
   await advance(ctx);
+}
+
+/** A frase traz um dia, uma hora ou um período? */
+export function mentionsWhen(ctx: Ctx, text: string): boolean {
+  const when = parseWhen(text, ctx.tz);
+  return !!(when.date || when.time !== undefined || when.period);
 }
 
 export { summary as bookingSummary };

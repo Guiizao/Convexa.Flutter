@@ -13,6 +13,9 @@ export type InboundMessage = {
   media?: { id: string; mimeType?: string; sha256?: string; caption?: string };
 };
 
+/** Mensagem que chegou sem telefone: o usuário usa "username" e a Meta mandou só o id dele (BSUID). */
+export type Unreachable = { phoneNumberId: string; userId: string; name?: string; wamid: string };
+
 export type StatusUpdate = { phoneNumberId: string; wamid: string; status: string; recipient: string; errors?: unknown };
 
 type Raw = {
@@ -22,7 +25,7 @@ type Raw = {
       field?: string;
       value?: {
         metadata?: { phone_number_id?: string };
-        contacts?: Array<{ wa_id?: string; profile?: { name?: string } }>;
+        contacts?: Array<{ wa_id?: string; user_id?: string; profile?: { name?: string } }>;
         messages?: Array<Record<string, any>>;
         statuses?: Array<Record<string, any>>;
       };
@@ -31,10 +34,11 @@ type Raw = {
 };
 
 /** Achata o webhook da Meta em mensagens e status. Ignora o que não entende. */
-export function parseWebhook(payload: unknown): { messages: InboundMessage[]; statuses: StatusUpdate[] } {
+export function parseWebhook(payload: unknown): { messages: InboundMessage[]; statuses: StatusUpdate[]; unreachable: Unreachable[] } {
   const raw = payload as Raw;
   const messages: InboundMessage[] = [];
   const statuses: StatusUpdate[] = [];
+  const unreachable: Unreachable[] = [];
   for (const entry of raw?.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value;
@@ -42,14 +46,23 @@ export function parseWebhook(payload: unknown): { messages: InboundMessage[]; st
       if (!value || !phoneNumberId) continue;
       const names = new Map((value.contacts ?? []).map((c) => [c.wa_id, c.profile?.name]));
       for (const m of value.messages ?? []) {
+        // Telefone: "from" ou, na falta, o wa_id do contato. Com usernames (2026) a Meta pode
+        // mandar só o user_id (BSUID). A agenda identifica o cliente pelo telefone, então
+        // sem ele não dá para atender: registra para o dono ver, em vez de sumir em silêncio.
+        const only = (value.contacts ?? []).length === 1 ? value.contacts![0] : undefined;
+        const from = String(m.from ?? only?.wa_id ?? "");
         const base = {
           phoneNumberId,
-          waId: String(m.from ?? ""),
-          name: names.get(m.from) ?? undefined,
+          waId: /^\d{8,15}$/.test(from) ? from : "",
+          name: names.get(m.from) ?? only?.profile?.name ?? undefined,
           wamid: String(m.id ?? ""),
           timestamp: Number(m.timestamp ?? Math.floor(Date.now() / 1000)),
         };
-        if (!base.waId || !base.wamid) continue;
+        if (!base.wamid) continue;
+        if (!base.waId) {
+          unreachable.push({ phoneNumberId, userId: String(m.from_user_id ?? m.user_id ?? only?.user_id ?? m.from ?? ""), name: base.name, wamid: base.wamid });
+          continue;
+        }
         switch (m.type) {
           case "text":
             messages.push({ ...base, type: "text", text: String(m.text?.body ?? "") });
@@ -86,7 +99,7 @@ export function parseWebhook(payload: unknown): { messages: InboundMessage[]; st
       }
     }
   }
-  return { messages, statuses };
+  return { messages, statuses, unreachable };
 }
 
 /** X-Hub-Signature-256: sha256=<hmac do corpo cru com o app secret> */

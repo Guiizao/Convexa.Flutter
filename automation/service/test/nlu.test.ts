@@ -90,3 +90,30 @@ describe("serviço pelo nome", () => {
     expect(findByName(text, svcs, (s) => s.name)?.name).toBe(name);
   });
 });
+
+describe("serviço pelo nome: sem falso positivo", () => {
+  const svcs = ["Corte", "Barba", "Hidratação capilar profunda com queratina e escova", "Marcação de sobrancelha"].map((name) => ({ name }));
+  it.each([
+    ["quero agendar", undefined],
+    ["quero marcar um horário", undefined],
+    ["tem barbeiro hoje?", undefined],
+    ["gostaria de um atendimento amanhã", undefined],
+    ["quero hidratação", "Hidratação capilar profunda com queratina e escova"],
+    ["fazer a queratina", "Hidratação capilar profunda com queratina e escova"],
+    ["quero cortar o cabelo com o barbeiro Lucas", "Corte"],
+    ["sobrancelha amanhã", "Marcação de sobrancelha"],
+  ])("%s -> %s", (text, name) => {
+    expect(findByName(text, svcs, (s) => s.name)?.name).toBe(name);
+  });
+});
+
+describe("dono: aviso x atraso", () => {
+  it("aviso para outro dia não vira atraso de agora", async () => {
+    const { ownerIntent } = await import("../src/bot/nlu.js");
+    expect(ownerIntent("avisa os clientes de amanhã que vou atrasar")).toBe("notice");
+    expect(ownerIntent("avisa meus clientes de hoje que vou atrasar 15 min")).toBe("notice");
+    expect(ownerIntent("vou me atrasar 20 minutos")).toBe("delay");
+    expect(ownerIntent("avisa que vou atrasar 20 minutos")).toBe("delay");
+    expect(ownerIntent("avisa o pessoal que hoje fecho às 17")).toBe("notice");
+  });
+});

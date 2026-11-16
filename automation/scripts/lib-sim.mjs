@@ -77,6 +77,7 @@ export function check(name, cond, detail = "") {
   console.log(cond ? `  ✓ ${name}` : `  ✗ ${name}\n${String(detail).split("\n").slice(0, 8).map((l) => "      " + l).join("\n")}`);
 }
 export async function scenario(area, title, fn) {
+  await budget().catch(() => {});
   current = { area, title, checks: [], from: transcript.length };
   results.push(current);
   console.log(`\n▶ [${area}] ${title}`);
@@ -135,4 +136,46 @@ export async function tick() {
 export async function age(who, hours) {
   await sim("/api/age", { waId: who.waId, hours });
   sql(`UPDATE conversation SET last_inbound_at = now() - interval '${Number(hours)} hours' WHERE phone = '+${who.waId}'`);
+}
+
+/** SQL no banco da ConvexaAPI. Só em ambiente local de testes (limpar a agenda da empresa de demonstração, simular cota). */
+export function apiSql(query) {
+  const url = process.env.API_DB_URL;
+  if (!url) throw new Error("defina API_DB_URL para os cenários que limpam a agenda de demonstração");
+  return execFileSync("psql", [url, "-tAc", query], { encoding: "utf8" }).trim();
+}
+/**
+ * A ConvexaAPI limita /api a 300 chamadas por 15 min por IP, e os testes rodam tudo de um IP só.
+ * Antes de cada cenário, se sobrar pouco, espera a janela virar (isso não acontece com clientes reais
+ * espalhados no tempo; é efeito de rodar centenas de conversas em minutos).
+ */
+export async function budget(min = 70) {
+  const r = await fetch(`${API}/api/business`, { headers: { Authorization: `Bearer ${await panelToken()}` } });
+  const m = (r.headers.get("ratelimit") ?? "").match(/remaining=(\d+), reset=(\d+)/);
+  if (!m) return;
+  if (Number(m[1]) < min) {
+    console.log(`  (limite da API quase no fim: ${m[1]} chamadas; esperando ${m[2]} s a janela virar)`);
+    await sleep((Number(m[2]) + 2) * 1000);
+  }
+}
+/** Chamada da Alexa, pelo webhook do n8n, no formato que a Amazon manda. */
+export async function alexa(userId, intent, slots = {}, attributes = {}, type = "IntentRequest") {
+  const body = {
+    version: "1.0",
+    session: { new: !Object.keys(attributes).length, sessionId: "s-" + userId, application: { applicationId: "amzn1.ask.skill.teste" }, user: { userId }, attributes },
+    context: { System: { application: { applicationId: "amzn1.ask.skill.teste" }, user: { userId } } },
+    request: {
+      type,
+      requestId: "r" + Date.now(),
+      timestamp: new Date().toISOString(),
+      locale: "pt-BR",
+      ...(type === "IntentRequest" ? { intent: { name: intent, slots: Object.fromEntries(Object.entries(slots).map(([k, v]) => [k, { name: k, value: v }])) } } : {}),
+    },
+  };
+  const r = await fetch(`${N8N}/webhook/alexa`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  const speech = (j.response?.outputSpeech?.ssml ?? "").replace(/<[^>]+>/g, "");
+  transcript.push({ at: new Date().toISOString(), who: "Alexa", waId: userId, dir: "user", text: `${type === "IntentRequest" ? intent : type} ${JSON.stringify(slots)}` });
+  transcript.push({ at: new Date().toISOString(), who: "Alexa", waId: userId, dir: "bot", kind: "voz", text: speech });
+  return { status: r.status, speech, end: j.response?.shouldEndSession, attributes: j.sessionAttributes ?? {} };
 }

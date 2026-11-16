@@ -121,6 +121,28 @@ export async function tryOwnerLogin(email: string, password: string) {
   return session;
 }
 
+/**
+ * Cadastros que quase nunca mudam (dados da empresa, serviços, equipe) ficam 60 s em memória.
+ * A ConvexaAPI limita /api a 300 chamadas por 15 min por IP, e todas as empresas saem daqui
+ * pelo mesmo IP: sem isso, cada mensagem do cliente gastava 2 ou 3 chamadas repetidas.
+ */
+const CACHE_TTL_MS = 60_000;
+const ownerCache = new Map<string, { at: number; value: Promise<unknown> }>();
+function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = ownerCache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value as Promise<T>;
+  const value = load().catch((error) => {
+    ownerCache.delete(key);
+    throw error;
+  });
+  ownerCache.set(key, { at: Date.now(), value });
+  return value;
+}
+/** Só para testes. */
+export function clearOwnerCache() {
+  ownerCache.clear();
+}
+
 class HttpOwnerApi implements OwnerApi {
   constructor(private readonly businessId: string) {}
 
@@ -141,15 +163,13 @@ class HttpOwnerApi implements OwnerApi {
   }
 
   business() {
-    return this.call<BusinessInfo>("GET", "/api/business");
+    return cached(`${this.businessId}:business`, () => this.call<BusinessInfo>("GET", "/api/business"));
   }
-  async services() {
-    const r = await this.call<{ data: Service[] }>("GET", "/api/services", { query: { perPage: 100 } });
-    return r.data;
+  services() {
+    return cached(`${this.businessId}:services`, async () => (await this.call<{ data: Service[] }>("GET", "/api/services", { query: { perPage: 100 } })).data);
   }
-  async employees() {
-    const r = await this.call<{ data: Employee[] }>("GET", "/api/employees", { query: { perPage: 100 } });
-    return r.data;
+  employees() {
+    return cached(`${this.businessId}:employees`, async () => (await this.call<{ data: Employee[] }>("GET", "/api/employees", { query: { perPage: 100 } })).data);
   }
   appointments(q: { from?: string; to?: string; status?: OwnerAppointment["status"]; customerId?: string }) {
     return this.call<OwnerAppointment[]>("GET", "/api/appointments", { query: q });

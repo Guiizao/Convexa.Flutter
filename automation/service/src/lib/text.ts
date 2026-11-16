@@ -34,9 +34,21 @@ function levenshtein(a: string, b: string): number {
   return prev[b.length]!;
 }
 
+// Palavras de conversa que não podem casar "pelo radical" com o nome de um serviço:
+// "quero" ~ "queratina", "barbeiro" ~ "barba", "marcar" ~ "marcação".
+const NOT_A_NAME = new Set(
+  (
+    "quero queria queremos querer quer gostaria preciso posso pode poderia como para hoje amanha depois agendar agenda marcar marca marcacao " +
+    "horario horarios fazer favor obrigado obrigada tarde noite manha cliente clientes barbeiro barbeiros barbearia salao clinica estudio " +
+    "profissional profissionais atendimento atendente servico servicos procedimento sessao consigo encaixe encaixar semana proxima proximo"
+  ).split(" "),
+);
+
 /**
  * Acha o item cujo nome aparece no texto. Prefere o nome mais longo
  * ("corte + barba" ganha de "corte") e tolera um erro de digitação por palavra.
+ * Nome parcial vale ("hidratação" acha "Hidratação capilar profunda"), desde que
+ * pelo menos uma palavra bata de verdade, e não só pelo radical.
  */
 export function findByName<T>(text: string, items: T[], name: (t: T) => string): T | undefined {
   const t = ` ${norm(text)} `;
@@ -47,19 +59,14 @@ export function findByName<T>(text: string, items: T[], name: (t: T) => string):
       if (!n) return { item, score: 0 };
       const words = n.split(" ").filter((w) => w.length >= 3 && w !== "com");
       const exact = t.includes(` ${n} `) || t.includes(` ${n}s `);
-      const hits = words.filter((w) =>
-        tokens.some(
-          (tok) =>
-            tok === w ||
-            tok === `${w}s` ||
-            (w.length >= 5 && levenshtein(tok, w) <= 1) ||
-            // mesmo radical: "cortar" ~ "corte", "barbear" ~ "barba"
-            (w.length >= 5 && tok.length >= 5 && tok.slice(0, 4) === w.slice(0, 4)),
-        ),
-      ).length;
+      const strongHit = (w: string) => tokens.some((tok) => tok === w || tok === `${w}s` || (w.length >= 5 && levenshtein(tok, w) <= 1));
+      // mesmo radical: "cortar" ~ "corte", "barbear" ~ "barba"
+      const stemHit = (w: string) => tokens.some((tok) => w.length >= 5 && tok.length >= 5 && !NOT_A_NAME.has(tok) && tok.slice(0, 4) === w.slice(0, 4));
+      const strong = words.filter(strongHit).length;
+      const hits = words.filter((w) => strongHit(w) || stemHit(w)).length;
       // casou todas as palavras: quanto mais palavras, mais específico ("corte + barba" > "corte")
       const full = exact || (words.length > 0 && hits === words.length);
-      const score = full ? Math.max(words.length, 1) * 100 + (exact ? 10 : 0) : hits * 10;
+      const score = full ? Math.max(words.length, 1) * 100 + (exact ? 10 : 0) : strong > 0 ? hits * 10 : 0;
       return { item, score };
     })
     .filter((s) => s.score > 0)

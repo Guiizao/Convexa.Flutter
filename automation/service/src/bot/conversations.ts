@@ -18,6 +18,8 @@ export type Conversation = {
   state: ConvState;
   pausedUntil: Date | null;
   lastInboundAt: Date | null;
+  /** ids das últimas opções mostradas, na ordem em que apareceram */
+  lastOptions: string[] | null;
 };
 
 type Row = {
@@ -29,6 +31,7 @@ type Row = {
   state: ConvState;
   paused_until: Date | null;
   last_inbound_at: Date | null;
+  last_options: string[] | null;
 };
 
 const map = (r: Row): Conversation => ({
@@ -40,6 +43,7 @@ const map = (r: Row): Conversation => ({
   state: r.state ?? {},
   pausedUntil: r.paused_until,
   lastInboundAt: r.last_inbound_at,
+  lastOptions: Array.isArray(r.last_options) ? r.last_options : null,
 });
 
 const STATE_TTL_MS = 2 * 60 * 60 * 1000;
@@ -79,6 +83,11 @@ export const conversations = {
       [businessId, phone, name ?? null],
     );
     return (await this.get(businessId, phone))!;
+  },
+
+  /** Guarda (ou apaga, com null) as opções da última mensagem com botões ou lista enviada ao contato. */
+  async setOptions(businessId: string, phone: string, ids: string[] | null) {
+    await db().query("UPDATE conversation SET last_options = $3 WHERE business_id = $1 AND phone = $2", [businessId, phone, ids ? JSON.stringify(ids) : null]);
   },
 
   async saveState(businessId: string, phone: string, state: ConvState) {

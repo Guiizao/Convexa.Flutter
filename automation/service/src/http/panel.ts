@@ -34,7 +34,7 @@ async function bizFor(req: Parameters<typeof panelAuth>[0]) {
 }
 
 function panelCtx(biz: Awaited<ReturnType<typeof resolveBiz>>) {
-  return new Ctx(biz, httpGateway, "panel", { businessId: biz.businessId, phone: "panel", waId: null, name: null, role: "owner", state: {}, pausedUntil: null, lastInboundAt: null }, {});
+  return new Ctx(biz, httpGateway, "panel", { businessId: biz.businessId, phone: "panel", waId: null, name: null, role: "owner", state: {}, pausedUntil: null, lastInboundAt: null, lastOptions: null }, {});
 }
 
 // ------------------------------------------------------------------ status geral

@@ -321,8 +321,15 @@ async function cancelOne(ctx: Ctx, text: string) {
   const date = when.date ?? dayOf(ctx.now());
   const items = (await ops.dayAgenda(api, ctx.tz, date)).filter((a) => a.status !== "COMPLETED");
   let hits = items;
-  const byName = findByName(text.replace(/.*\b(do|da|de)\b/i, ""), items, (a) => a.customer.name);
+  // Nome citado ("o horário da Alice"): tira as palavras de data e hora do que vem depois de do/da/de
+  const tail = (text.match(/.*\b(?:do|da|de)\b(.*)$/i)?.[1] ?? "").trim();
+  const nameWords = norm(tail)
+    .split(" ")
+    .filter((w) => w.length >= 3 && !/^(amanha|hoje|depois|segunda|terca|quarta|quinta|sexta|sabado|domingo|feira|dia|horario|agendamento|cliente|manha|tarde|noite|\d.*)$/.test(w));
+  const byName = tail ? findByName(tail, items, (a) => a.customer.name) : undefined;
   if (byName) hits = items.filter((a) => a.customer.name === byName.customer.name);
+  // Citou um nome que não está na agenda do dia: nunca oferecer o horário de outra pessoa
+  else if (nameWords.length > 0) hits = [];
   if (when.time !== undefined) hits = hits.filter((a) => a.start === hhmm(when.time!));
   if (hits.length === 0) return ctx.say(`Não achei esse agendamento ${friendlyDay(date, ctx.tz)}. Confira o nome e o horário.`);
   if (hits.length > 1) {

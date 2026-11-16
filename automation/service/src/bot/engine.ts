@@ -18,6 +18,7 @@ import { onPaymentReply, onReceipt } from "./customer/payment.js";
 import { customerIntent, type CustomerIntent } from "./nlu.js";
 import { onOwnerReply, onOwnerText, ownerMenu } from "./owner/commands.js";
 import { ownerIntent } from "./nlu.js";
+import { optionFromNumber, rememberOptions } from "./options.js";
 
 // ---------------------------------------------------------------- empresa
 type Tenant = { businessId: string; name: string; timezone: string };
@@ -89,6 +90,12 @@ async function process(gw: Gateway, biz: Biz, msg: InboundMessage, phone: string
   });
   if (!fresh) return []; // a Meta reenviou o mesmo webhook
 
+  // Resposta por número: "2" vale como tocar na 2ª opção da última lista ou dos últimos botões
+  if (msg.type === "text" && msg.text) {
+    const picked = optionFromNumber(msg.text, conv.lastOptions);
+    if (picked) msg = { ...msg, type: "reply", replyId: picked };
+  }
+
   const ctx = new Ctx(biz, gw, phone, conv, { ...conv.state });
   try {
     const asCustomer = isOwner && ctx.state.actAsCustomerUntil && Date.parse(ctx.state.actAsCustomerUntil) > Date.now();
@@ -100,17 +107,19 @@ async function process(gw: Gateway, biz: Biz, msg: InboundMessage, phone: string
   } catch (error) {
     log.error("falha ao processar mensagem", { businessId: biz.businessId, ...errorInfo(error) });
     ctx.out.length = 0;
-    if (error instanceof ConvexaError && error.status === 503) {
+    if (error instanceof ConvexaError && (error.status === 503 || error.status === 429)) {
+      // 429: a ConvexaAPI limitou as chamadas (muitas conversas ao mesmo tempo). O estado da conversa fica como estava.
       ctx.say("Estou com uma instabilidade agora 😕 Tenta de novo em alguns minutos, por favor.");
     } else {
       ctx.reset();
       ctx.say("Desculpe, algo deu errado do meu lado 😕 Vamos de novo?");
       if (isOwner) ownerMenu(ctx);
-      else flows.menu(ctx);
+      else await flows.menu(ctx);
     }
   }
 
   await conversations.saveState(biz.businessId, phone, ctx.state);
+  await rememberOptions(biz.businessId, ctx.out);
   for (const o of ctx.out) {
     await messageLog.outbound({ businessId: biz.businessId, phone: o.to, kind: o.body.type, body: o.preview, payload: o.body });
   }
@@ -194,9 +203,7 @@ async function customerReply(ctx: Ctx, id: string) {
     if (action === "resch") return booking.startReschedule(ctx, mine, { fromCampaign: m[1] === "cp" ? apptId : undefined });
     return flows.onFlowReply(ctx, `a:cancel:${apptId}`).then(() => undefined);
   }
-  m = id.match(/^o:menu$/);
-  if (m) return flows.menu(ctx);
-  flows.menu(ctx);
+  await flows.menu(ctx);
 }
 
 async function customerText(ctx: Ctx, text: string) {
@@ -214,15 +221,16 @@ async function customerText(ctx: Ctx, text: string) {
     }
   }
 
+  // "barba quinta às 16h", "oi, tem horário amanhã?": cita um serviço ou uma data/hora -> é agendamento,
+  // mesmo sem a palavra "marcar". Só vale quando nenhuma outra intenção (preço, cancelar...) apareceu.
+  if ((intent === "unknown" || intent === "greeting" || intent === "menu") && (await booking.looksLikeBooking(ctx, canonical))) {
+    return booking.startBooking(ctx, canonical);
+  }
+
   switch (intent) {
     case "greeting":
-    case "menu": {
-      // "oi, tem horário amanhã?" já vira agendamento
-      if (/\b(amanha|hoje|sexta|sabado|segunda|terca|quarta|quinta|\d{1,2}h)\b/i.test(text.normalize("NFD").replace(/[̀-ͯ]/g, ""))) {
-        return booking.startBooking(ctx, canonical);
-      }
+    case "menu":
       return flows.greet(ctx);
-    }
     case "book":
       return booking.startBooking(ctx, canonical);
     case "my_appointments":
@@ -264,6 +272,6 @@ async function customerText(ctx: Ctx, text: string) {
       return flows.menu(ctx);
     default:
       if (ctx.state.flow === "book") return booking.reprompt(ctx);
-      return flows.menu(ctx, "Não entendi 🤔 Escolha uma das opções abaixo:");
+      return flows.menu(ctx, "Não entendi 🤔 Escolha uma das opções abaixo, ou escreva de outro jeito:");
   }
 }

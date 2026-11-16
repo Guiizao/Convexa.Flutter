@@ -53,7 +53,7 @@ export function yesNo(input: string): "yes" | "no" | undefined {
 
 /** "1", "opção 2", "a 3" -> número escolhido de um menu em texto */
 export function menuNumber(input: string): number | undefined {
-  const m = norm(input).match(/^(?:opcao |numero |a |o )?(\d{1,2})$/);
+  const m = norm(input).replace(/[.)º°ª]+$/, "").trim().match(/^(?:opcao |numero |n |a |o )?(\d{1,2})$/);
   return m ? Number(m[1]) : undefined;
 }
 
@@ -68,11 +68,16 @@ export function customerIntent(input: string): CustomerIntent {
   if (has(t, /\b(meus? (horarios?|agendamentos?)|(qual|quando) (e |eh )?(o )?meu|tenho (algum )?(horario|agendamento)( marcado)?\b(?! (amanha|hoje|livre|disponivel))|ja (estou|to) marcad|marquei)\b/))
     return "my_appointments";
   if (has(t, /\b(confirmo presenca|vou sim|estarei la|to indo|estou indo|vou comparecer|confirmar presenca|confirmo o horario)\b/)) return "confirm_presence";
-  if (has(t, /\b(comprovante|paguei|pix|sinal|pagamento|pagar)\b/)) return "payment";
+  if (has(t, /\b(comprovante|paguei|pix|sinal|pagamento|pagar|transferi|ja (fiz|mandei|enviei)|confirmou|aprovou|aprovado|caiu|recebeu|receberam|deu certo)\b/)) return "payment";
   if (has(t, /\b(agendar|marcar|marca|reservar|vaga|disponivel|encaixe|encaixar|tem como|consigo|quero (fazer|cortar|um |uma )|queria (fazer|cortar|marcar|um |uma ))\b|\btem horario\b|\bhorario (pra|para|amanha|hoje)\b/))
     return "book";
   if (has(t, /\b(preco|precos|valor|valores|quanto (custa|e|fica|ta|sai)|tabela|servicos|o que voces fazem|cardapio)\b/)) return "prices";
-  if (has(t, /\b(endereco|onde fica|localizacao|como chego|abrem?|fecham?|funcionamento|aberto|atendem? (hoje|amanha|domingo|sabado|feriado)|forma de pagamento|aceita)\b/))
+  if (
+    has(
+      t,
+      /\b(endereco|onde (voces |vcs |voce |vc |que )?(e|fica|ficam|esta|estao)\b|fica(m)? (onde|em que|aonde)|localizacao|como (chego|chegar)|abrem?|fecham?|funcionamento|aberto|aberta|ate que horas|que horas (abre|fecha|abrem|fecham)|horario de (atendimento|funcionamento)|atendem? (hoje|amanha|domingo|sabado|feriado)|formas? de pagamento|aceitam?|estacionamento)\b/,
+    )
+  )
     return "info";
   const yn = yesNo(t);
   if (yn) return yn;
@@ -92,9 +97,11 @@ export function ownerIntent(input: string): OwnerIntent {
   if (has(t, /\b(pausar?|pausa|desliga|desligar|parar?) (o )?(bot|robo|atendimento|automatico)\b/)) return "pause_bot";
   if (has(t, /\b(ativar?|ativa|liga|ligar|voltar?|retomar?) (o )?(bot|robo|atendimento|automatico)\b/)) return "resume_bot";
   if (has(t, /\b(comprovantes?|pagamentos? pendentes?|sinais? pendentes?|quem pagou|pix pendente)\b/)) return "pending_payments";
+  const noticeVerb = has(t, /\b(avisa|avise|avisar|manda (uma )?mensagem|mande (uma )?mensagem|comunica|comunicar|informa|informar|fala pros?|diz pros?)\b/);
+  // "avisa os clientes de amanhã que vou atrasar" é um aviso para aquele dia, não o atraso de agora
+  if (noticeVerb && has(t, /\b(clientes? (de|da|do)|pessoal (de|da|do)|amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo)\b/)) return "notice";
   if (has(t, /\b(vou (me )?atrasar|estou atrasad|to atrasad|vou chegar atrasad|atraso de)\b/)) return "delay";
-  if (has(t, /\b(avisa|avise|avisar|manda (uma )?mensagem|mande (uma )?mensagem|comunica|comunicar|informa|informar|fala pros?|diz pros?)\b/))
-    return "notice";
+  if (noticeVerb) return "notice";
   if (has(t, /\b(sair (mais )?cedo|vou embora|fechar (mais )?cedo|encerrar (mais )?cedo|vou sair)\b/)) return "leave_early";
   if (has(t, /\b(chegar (mais )?tarde|vou chegar|so chego|comecar (mais )?tarde|abrir (mais )?tarde)\b/)) return "arrive_late";
   if (has(t, /\b(nao vou (trabalhar|abrir|atender)|vou fechar|folga|fechar (a agenda|o dia)|dia de folga|nao abro)\b/)) return "day_off";

@@ -115,7 +115,8 @@ export function template(
 ): Out {
   const components: unknown[] = [];
   if (params.length) {
-    components.push({ type: "body", parameters: params.map((p) => ({ type: "text", text: clip(p.replace(/\s*\n\s*/g, " "), 300) })) });
+    // A Meta recusa variável vazia, com quebra de linha, tab ou mais de 4 espaços seguidos
+    components.push({ type: "body", parameters: params.map((p) => ({ type: "text", text: clip(p.replace(/\s+/g, " ").trim(), 300) || "-" })) });
   }
   quickReplies.forEach((payload, index) =>
     components.push({ type: "button", sub_type: "quick_reply", index: String(index), parameters: [{ type: "payload", payload }] }),
@@ -131,4 +132,18 @@ export function template(
 /** Envia sessão se a janela de 24h estiver aberta; senão usa o template. */
 export function sessionOrTemplate(windowOpen: boolean, session: Out, fallback: Out): Out {
   return windowOpen ? session : fallback;
+}
+
+/** ids das opções de uma mensagem (botões, linhas de lista ou respostas rápidas de modelo), na ordem mostrada. */
+export function optionIds(out: Out): string[] {
+  const b = out.body as any;
+  if (b.type === "interactive" && b.interactive?.type === "button") return (b.interactive.action?.buttons ?? []).map((x: any) => x.reply.id);
+  if (b.type === "interactive" && b.interactive?.type === "list") return (b.interactive.action?.sections ?? []).flatMap((s: any) => (s.rows ?? []).map((r: any) => r.id));
+  if (b.type === "template") {
+    return (b.template?.components ?? [])
+      .filter((c: any) => c.type === "button")
+      .map((c: any) => c.parameters?.[0]?.payload)
+      .filter(Boolean);
+  }
+  return [];
 }

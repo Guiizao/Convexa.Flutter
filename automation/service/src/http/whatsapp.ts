@@ -30,10 +30,13 @@ whatsappRoutes.post(
   wrap(async (req, res) => {
     const body = inboundSchema.parse(req.body);
     const payload = body.rawBody ? JSON.parse(body.rawBody) : body.payload;
-    const { messages, statuses } = parseWebhook(payload);
+    const { messages, statuses, unreachable } = parseWebhook(payload);
+    for (const u of unreachable) {
+      log.warn("mensagem sem telefone (usuário com username do WhatsApp): não foi possível atender", { phoneNumberId: u.phoneNumberId, userId: u.userId, name: u.name ?? null });
+    }
 
     // Assinatura da Meta: confere com o app secret da empresa dona do número
-    const phoneNumberIds = [...new Set([...messages, ...statuses].map((m) => m.phoneNumberId))];
+    const phoneNumberIds = [...new Set([...messages, ...statuses, ...unreachable].map((m) => m.phoneNumberId))];
     if (env().WHATSAPP_REQUIRE_SIGNATURE) {
       if (!body.rawBody || !body.signature) throw new HttpError(401, "Webhook sem assinatura");
       for (const id of phoneNumberIds) {

@@ -14,6 +14,7 @@ import { conversations, messageLog } from "../bot/conversations.js";
 import { expire } from "../bot/customer/payment.js";
 import { campaigns } from "../bot/owner/campaigns.js";
 import { resolveBiz } from "../bot/engine.js";
+import { rememberOptions } from "../bot/options.js";
 import { syncGoogle } from "../google/sync.js";
 
 export type Batch = { phoneNumberId: string; messages: Out[] };
@@ -36,7 +37,7 @@ async function once(key: string, ttlSeconds: number): Promise<boolean> {
 }
 
 export function systemCtx(biz: Biz, gw: Gateway): Ctx {
-  return new Ctx(biz, gw, "system", { businessId: biz.businessId, phone: "system", waId: null, name: null, role: "owner", state: {}, pausedUntil: null, lastInboundAt: null }, {});
+  return new Ctx(biz, gw, "system", { businessId: biz.businessId, phone: "system", waId: null, name: null, role: "owner", state: {}, pausedUntil: null, lastInboundAt: null, lastOptions: null }, {});
 }
 
 export async function tick(gw: Gateway): Promise<Batch[]> {
@@ -55,6 +56,7 @@ export async function tick(gw: Gateway): Promise<Batch[]> {
         if (biz.settings.google.enabled) await syncGoogle(ctx).catch((e) => log.warn("sync Google falhou", errorInfo(e)));
         if (ctx.out.length) {
           for (const o of ctx.out) await messageLog.outbound({ businessId: biz.businessId, phone: o.to, kind: o.body.type, body: o.preview, payload: o.body });
+          await rememberOptions(biz.businessId, ctx.out);
           batches.push({ phoneNumberId: link.metaPhoneNumberId, messages: ctx.out });
         }
       } catch (error) {

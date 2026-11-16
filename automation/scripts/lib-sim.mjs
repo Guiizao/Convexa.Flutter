@@ -10,7 +10,8 @@ export const OWNER = { waId: process.env.OWNER_WAID ?? "5514999990000", name: "R
 export const DEMO = { email: process.env.DEMO_EMAIL ?? "dono@navalha.demo", password: process.env.DEMO_PASSWORD ?? "Navalha#2026demo" };
 
 export const rnd = () => String(Math.floor(1000 + Math.random() * 8999));
-export const novoCliente = (name = "Cliente Teste") => ({ waId: `55149${rnd()}${rnd()}`, name });
+// Celular do Brasil: 9 + oito dígitos começando em 6-9 (o WhatsApp às vezes entrega sem o 9 da frente)
+export const novoCliente = (name = "Cliente Teste") => ({ waId: `55149${6 + Math.floor(Math.random() * 4)}${rnd().slice(1)}${rnd()}`, name });
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Registro de tudo o que foi falado, para o relatório. */

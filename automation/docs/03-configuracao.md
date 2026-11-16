@@ -156,10 +156,25 @@ chip novo ou apague a conta do app nesse número antes de cadastrar.
 
 ## 7. Modelos de mensagem na Meta
 
-Fora da janela de 24 h, a Meta só entrega mensagens por modelo aprovado. Em *WhatsApp Manager →
-Modelos de mensagem*, crie os 7 modelos da tabela no fim de `02-dialogos.md`, com **categoria
-Utilidade**, **idioma Português (BR)**, o texto exatamente igual e os botões de **resposta
-rápida**. A aprovação costuma sair em minutos ou em algumas horas.
+Fora da janela de 24 h, a Meta só entrega mensagens por modelo aprovado. Os 7 modelos estão em
+`automation/simulator/templates.json` (tabela no fim de `02-dialogos.md`): **categoria
+Utilidade**, **idioma Português (BR)** e botões de **resposta rápida**.
+
+O jeito mais rápido é o script, que confere os textos contra as regras da Meta e cadastra os que
+faltam:
+
+```bash
+cd automation/scripts
+export META_TOKEN=<token permanente> WABA_ID=<id da conta> PHONE_NUMBER_ID=<id do número>
+node meta-preparar.mjs verificar        # estado do número, nome exibido, webhook e modelos
+node meta-preparar.mjs criar-modelos    # envia para análise os que faltam
+node meta-preparar.mjs assinar-webhook  # só se as mensagens dos clientes não chegarem
+```
+
+Também dá para criar à mão em *WhatsApp Manager → Modelos de mensagem*, com o texto exatamente
+igual. A aprovação costuma sair em minutos ou em algumas horas. Se a Meta reclassificar algum
+para **Marketing**, não use: o custo é cerca de 9 vezes maior. Ajuste o texto (tire qualquer
+tom de propaganda) e envie de novo.
 
 Enquanto não forem aprovados, o bot funciona normalmente com quem falou nas últimas 24 h.
 Lembretes e avisos para os outros clientes ficam pendentes.

@@ -1,30 +1,87 @@
 {
   "convexa_lembrete": {
-    "body": "Olá, {{1}}! Lembrete do seu horário na {{2}}: {{3}}, {{4}} às {{5}}, com {{6}}. Você confirma?",
-    "buttons": ["Confirmo", "Remarcar", "Cancelar"]
+    "body": "Olá, {{1}}! Este é um lembrete do seu horário marcado na {{2}}. Serviço: {{3}}. Data: {{4}}, às {{5}}, com {{6}}. Você confirma a sua presença? Toque em um dos botões abaixo.",
+    "buttons": [
+      "Confirmo",
+      "Remarcar",
+      "Cancelar"
+    ],
+    "example": [
+      "Ana",
+      "Barbearia Navalha",
+      "Corte",
+      "sexta-feira, 20/11",
+      "15:00",
+      "Pedro"
+    ]
   },
   "convexa_remarcacao": {
     "body": "Olá, {{1}}. A {{2}} precisou ajustar a agenda de {{3}} e o seu horário das {{4}} não poderá ser mantido. Pedimos desculpas! Toque em Escolher horário para remarcar.",
-    "buttons": ["Escolher horário", "Cancelar"]
+    "buttons": [
+      "Escolher horário",
+      "Cancelar"
+    ],
+    "example": [
+      "Ana",
+      "Barbearia Navalha",
+      "sex, 20/11",
+      "15:00"
+    ]
   },
   "convexa_aviso": {
-    "body": "Olá, {{1}}. Aviso da {{2}} sobre o seu horário de {{3}}: {{4}}",
-    "buttons": ["Ok, entendi", "Remarcar"]
+    "body": "Olá, {{1}}. Aviso da {{2}} sobre o seu horário de {{3}}: {{4}}. Em caso de dúvida, responda esta mensagem.",
+    "buttons": [
+      "Ok, entendi",
+      "Remarcar"
+    ],
+    "example": [
+      "Ana",
+      "Barbearia Navalha",
+      "sex, 20/11 15:00",
+      "hoje vamos atender na sala 2"
+    ]
   },
   "convexa_pagamento_confirmado": {
-    "body": "Pagamento recebido! Seu horário de {{1}} em {{2}} às {{3}} na {{4}} está confirmado.",
-    "buttons": []
+    "body": "Pagamento recebido, obrigado! O seu horário de {{1}} no dia {{2}} às {{3}} na {{4}} está confirmado. Esperamos por você.",
+    "buttons": [],
+    "example": [
+      "Corte",
+      "sex, 20/11",
+      "15:00",
+      "Barbearia Navalha"
+    ]
   },
   "convexa_sinal_expirado": {
     "body": "O prazo do sinal acabou e o seu horário de {{1}} ({{2}}) na {{3}} foi liberado. Se ainda quiser, toque em Agendar de novo.",
-    "buttons": ["Agendar de novo"]
+    "buttons": [
+      "Agendar de novo"
+    ],
+    "example": [
+      "Corte",
+      "sex, 20/11 15:00",
+      "Barbearia Navalha"
+    ]
   },
   "convexa_aviso_dono": {
-    "body": "Novidade na agenda da {{1}}: {{2}}",
-    "buttons": ["Abrir menu"]
+    "body": "Novidade na agenda da {{1}}: {{2}}. Toque em Abrir menu para ver os comandos.",
+    "buttons": [
+      "Abrir menu"
+    ],
+    "example": [
+      "Barbearia Navalha",
+      "Novo agendamento: Ana Souza, Corte, sex, 20/11 às 15:00 com Pedro"
+    ]
   },
   "convexa_comprovante": {
-    "body": "{{1}} enviou um comprovante de {{2}} referente a {{3}}. Confira na sua conta antes de aprovar.",
-    "buttons": ["Aprovar", "Recusar"]
+    "body": "Comprovante recebido: {{1}} enviou {{2}} referente a {{3}}. Confira na sua conta antes de aprovar.",
+    "buttons": [
+      "Aprovar",
+      "Recusar"
+    ],
+    "example": [
+      "Ana Souza",
+      "R$ 13,50",
+      "Corte sex, 20/11 15:00"
+    ]
   }
 }

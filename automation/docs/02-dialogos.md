@@ -149,12 +149,13 @@ Passo a passo, quando a frase não traz tudo:
 
 ### Lembretes (automáticos)
 
-Saem nos horários escolhidos em *Lembretes e resumo* (padrão: 24 h e 2 h antes). Fora da janela
-de 24 h, vão como o modelo `convexa_lembrete`:
+Saem nos horários escolhidos em *Lembretes e resumo* (padrão: 24 h e 2 h antes). Dentro da
+janela de 24 h vão como mensagem com botões; fora dela, como o modelo `convexa_lembrete`:
 
 ```
-🤖 Olá, Paula! Lembrete do seu horário na Barbearia Navalha: Barba, sexta-feira 20/11 às 11:00,
-   com Pedro. Você confirma?                      [Confirmo | Remarcar | Cancelar]
+🤖 Olá, Paula! Este é um lembrete do seu horário marcado na Barbearia Navalha. Serviço: Barba.
+   Data: sexta-feira 20/11, às 11:00, com Pedro. Você confirma a sua presença?
+                                                  [Confirmo | Remarcar | Cancelar]
 ```
 
 Botões: `rem:ok:<id>` (marca como confirmado na agenda), `rem:resch:<id>` e `rem:cancel:<id>`.
@@ -324,13 +325,16 @@ botões são de **resposta rápida**.
 
 | Nome | Texto | Botões |
 |---|---|---|
-| `convexa_lembrete` | Olá, {{1}}! Lembrete do seu horário na {{2}}: {{3}}, {{4}} às {{5}}, com {{6}}. Você confirma? | Confirmo · Remarcar · Cancelar |
+| `convexa_lembrete` | Olá, {{1}}! Este é um lembrete do seu horário marcado na {{2}}. Serviço: {{3}}. Data: {{4}}, às {{5}}, com {{6}}. Você confirma a sua presença? Toque em um dos botões abaixo. | Confirmo · Remarcar · Cancelar |
 | `convexa_remarcacao` | Olá, {{1}}. A {{2}} precisou ajustar a agenda de {{3}} e o seu horário das {{4}} não poderá ser mantido. Pedimos desculpas! Toque em Escolher horário para remarcar. | Escolher horário · Cancelar |
-| `convexa_aviso` | Olá, {{1}}. Aviso da {{2}} sobre o seu horário de {{3}}: {{4}} | Ok, entendi · Remarcar |
-| `convexa_pagamento_confirmado` | Pagamento recebido! Seu horário de {{1}} em {{2}} às {{3}} na {{4}} está confirmado. | — |
+| `convexa_aviso` | Olá, {{1}}. Aviso da {{2}} sobre o seu horário de {{3}}: {{4}}. Em caso de dúvida, responda esta mensagem. | Ok, entendi · Remarcar |
+| `convexa_pagamento_confirmado` | Pagamento recebido, obrigado! O seu horário de {{1}} no dia {{2}} às {{3}} na {{4}} está confirmado. Esperamos por você. | — |
 | `convexa_sinal_expirado` | O prazo do sinal acabou e o seu horário de {{1}} ({{2}}) na {{3}} foi liberado. Se ainda quiser, toque em Agendar de novo. | Agendar de novo |
-| `convexa_aviso_dono` | Novidade na agenda da {{1}}: {{2}} | Abrir menu |
-| `convexa_comprovante` | {{1}} enviou um comprovante de {{2}} referente a {{3}}. Confira na sua conta antes de aprovar. | Aprovar · Recusar |
+| `convexa_aviso_dono` | Novidade na agenda da {{1}}: {{2}}. Toque em Abrir menu para ver os comandos. | Abrir menu |
+| `convexa_comprovante` | Comprovante recebido: {{1}} enviou {{2}} referente a {{3}}. Confira na sua conta antes de aprovar. | Aprovar · Recusar |
+
+Os exemplos de cada variável (exigidos pela Meta na análise) também estão no `templates.json`. O
+script `automation/scripts/meta-preparar.mjs criar-modelos` cadastra todos de uma vez.
 
 Enquanto um modelo não estiver aprovado, a mensagem correspondente só chega para quem falou com
 o número nas últimas 24 h.

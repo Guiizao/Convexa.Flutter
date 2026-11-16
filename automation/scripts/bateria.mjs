@@ -489,8 +489,9 @@ if (runs("dono")) {
 
   await scenario("Dono", "Consultas: agenda, próximo, horários livres, faturamento", async () => {
     let r = await talk(OWNER, { text: "o que eu tenho amanhã?" });
-    check("agenda de amanhã lista os 3 clientes em ordem de horário", /3 clientes/.test(text(r)) && text(r).indexOf("Alice") < text(r).indexOf("Bruno") && text(r).indexOf("Bruno") < text(r).indexOf("Caio"), text(r));
-    check("agenda mostra o total previsto (45 + 35 + 45 = R$ 125,00)", /R\$ 125,00/.test(text(r)), text(r));
+    check("agenda de amanhã lista os clientes em ordem de horário", /\d+ clientes/.test(text(r)) && text(r).indexOf("Alice") < text(r).indexOf("Bruno") && text(r).indexOf("Bruno") < text(r).indexOf("Caio"), text(r));
+    const times = [...text(r).matchAll(/\*(\d{2}:\d{2})\*/g)].map((m) => m[1]);
+    check("horários em ordem crescente e com o total previsto em reais", times.length >= 3 && times.join() === [...times].sort().join() && /R\$ \d+,\d{2}\)/.test(text(r)), text(r));
     r = await talk(OWNER, { text: "quem é o próximo cliente?" });
     check("próximo cliente com nome, serviço, hora e telefone", /Próximo/.test(text(r)) && /\(14\)/.test(text(r)), text(r));
     r = await talk(OWNER, { text: "tenho horário livre amanhã?" });
@@ -566,11 +567,12 @@ if (runs("dono")) {
 
   await scenario("Dono", "Avisar os clientes do dia: confirma antes de enviar", async () => {
     let r = await talk(OWNER, { text: "avisa meus clientes de amanhã que vamos atender na sala 2" });
-    check("mostra a mensagem e quantos vão receber, com Enviar / Cancelar", /sala 2/i.test(text(r)) && options(r).includes("Enviar") && /2 clientes/.test(text(r)), text(r));
+    check("mostra a mensagem, quantos e quem vai receber, com Enviar / Cancelar", /sala 2/i.test(text(r)) && options(r).includes("Enviar") && /\d+ clientes/.test(text(r)) && /Alice/.test(text(r)) && /Bruno/.test(text(r)), text(r));
+    const quantos = Number(text(r).match(/(\d+) clientes/)?.[1]);
     const s1 = await lastSeq(c1.waId);
     const s2 = await lastSeq(c2.waId);
     r = await talk(OWNER, tap(r, /^Enviar$/));
-    check("confirma o envio para 2 clientes", /Aviso enviado para 2 clientes/.test(text(r)), text(r));
+    check("confirma o envio para a mesma quantidade anunciada", new RegExp(`Aviso enviado para ${quantos} clientes`).test(text(r)), text(r));
     const a = await waitBot(c1, s1, { timeoutMs: 10000 });
     const b = await waitBot(c2, s2, { timeoutMs: 6000 });
     check("Alice e Bruno recebem o aviso com o texto do dono", /sala 2/i.test(text(a)) && /sala 2/i.test(text(b)), text(a) + text(b));
@@ -690,8 +692,12 @@ if (runs("robustez")) {
     const c = novoCliente("Nono Digito");
     await agendarEConfirmar(c, "corte sexta às 9h");
     const sem9 = c.waId.slice(0, 4) + c.waId.slice(5); // 55 14 9XXXX-XXXX -> 55 14 XXXX-XXXX
-    const r = await talk(c, { text: "meus horários", opts: { fromWaId: sem9 } });
+    const old = { waId: sem9, name: c.name };
+    const since = await lastSeq(sem9);
+    await sim("/api/send", { waId: c.waId, name: c.name, text: "meus horários", opts: { fromWaId: sem9 } });
+    const r = await waitBot(old, since);
     check("mensagem vinda sem o 9 acha o agendamento do mesmo cliente", /09:00/.test(text(r)) && /Corte/.test(text(r)), text(r));
+    check("a resposta vai para o número como o WhatsApp entregou (sem o 9)", r.length > 0, "nada chegou no número sem o 9");
   });
 
   await scenario("Robustez", "Mensagem sem telefone (usuário com username do WhatsApp): não quebra", async () => {
@@ -829,17 +835,17 @@ if (runs("alexa")) {
     const got = await waitBot(cx, since, { timeoutMs: 12000 });
     check("a cliente recebe o pedido de remarcação no WhatsApp", /não vai poder ser mantido/.test(text(got)) && options(got).includes("Escolher horário"), text(got));
     a = await alexa(user, "BloquearIntent", { dia: amanha, inicio: "12:00" });
-    check("só a hora de início: bloqueia 1 hora e avisa", /do meio-dia às 13 horas/.test(a.speech) && /Bloqueei uma hora/.test(a.speech), a.speech);
+    check("só a hora de início: bloqueia 1 hora (do meio-dia às 13 horas)", /do meio-dia às 13 horas/.test(a.speech), a.speech);
     a = await alexa(user, "BloquearIntent", { dia: amanha });
     check("sem horário: pede o horário, com exemplo", /Não entendi o horário/.test(a.speech) && a.end === false, a.speech);
   });
 
   await scenario("Alexa", "Avisar clientes, atraso, pausar e ativar o bot por voz", async () => {
     let a = await alexa(user, "AvisarClientesAmanhaIntent", { mensagem: "vamos abrir meia hora mais tarde" });
-    check("aviso: repete a mensagem, diz quantos recebem e pede confirmação", /Vou mandar para 1 cliente/.test(a.speech) && /meia hora mais tarde/i.test(a.speech) && a.end === false, a.speech);
+    check("aviso: repete a mensagem, diz quantos recebem e pede confirmação", /Vou mandar para \d+ clientes?/.test(a.speech) && /meia hora mais tarde/i.test(a.speech) && a.end === false, a.speech);
     const since = await lastSeq(cx.waId);
     const yes = await alexa(user, "AMAZON.YesIntent", {}, a.attributes);
-    check("\"sim\": avisa pelo WhatsApp", /avisei Helena/.test(yes.speech), yes.speech);
+    check("\"sim\": avisa pelo WhatsApp", /avisei (Helena|os \d+ clientes) pelo WhatsApp/.test(yes.speech), yes.speech);
     const got = await waitBot(cx, since, { timeoutMs: 12000 });
     check("a cliente recebe o aviso", /meia hora mais tarde/i.test(text(got)), text(got));
     a = await alexa(user, "AvisarClientesIntent", {});

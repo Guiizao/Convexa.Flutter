@@ -1,0 +1,508 @@
+{
+  "id": "cvxInstalacao017",
+  "name": "Convexa - 17 Instalação (rodar uma vez)",
+  "nodes": [
+    {
+      "id": "cvx-0278-rodar-instalacao",
+      "name": "Rodar instalação",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "cvx-0279-instalar-por-webhook",
+      "name": "Instalar por webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "convexa/instalar",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "c0e1b2a3-4d5e-4f60-8a71-9b2c3d4e5f17",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nCSP3kSFDlY3r6RU",
+          "name": "Convexa - Internal API Key"
+        }
+      }
+    },
+    {
+      "id": "cvx-0280-comecar",
+      "name": "Começar",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        110,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "cvx-0281-criar-convexa-conversas",
+      "name": "Criar convexa_conversas",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        330,
+        300
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "convexa_conversas",
+        "columns": {
+          "column": [
+            {
+              "name": "chave",
+              "type": "string"
+            },
+            {
+              "name": "phoneNumberId",
+              "type": "string"
+            },
+            {
+              "name": "waId",
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "type": "string"
+            },
+            {
+              "name": "nome",
+              "type": "string"
+            },
+            {
+              "name": "mode",
+              "type": "string"
+            },
+            {
+              "name": "step",
+              "type": "string"
+            },
+            {
+              "name": "conversa",
+              "type": "string"
+            },
+            {
+              "name": "lastMessageId",
+              "type": "string"
+            },
+            {
+              "name": "lastInboundAt",
+              "type": "string"
+            },
+            {
+              "name": "sincronizadoEm",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "cvx-0282-criar-convexa-agendamentos",
+      "name": "Criar convexa_agendamentos",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        550,
+        300
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "convexa_agendamentos",
+        "columns": {
+          "column": [
+            {
+              "name": "appointmentId",
+              "type": "string"
+            },
+            {
+              "name": "chave",
+              "type": "string"
+            },
+            {
+              "name": "phoneNumberId",
+              "type": "string"
+            },
+            {
+              "name": "waId",
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "type": "string"
+            },
+            {
+              "name": "nome",
+              "type": "string"
+            },
+            {
+              "name": "servico",
+              "type": "string"
+            },
+            {
+              "name": "profissional",
+              "type": "string"
+            },
+            {
+              "name": "startAt",
+              "type": "string"
+            },
+            {
+              "name": "endAt",
+              "type": "string"
+            },
+            {
+              "name": "data",
+              "type": "string"
+            },
+            {
+              "name": "hora",
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "type": "string"
+            },
+            {
+              "name": "lembreteEnviado",
+              "type": "string"
+            },
+            {
+              "name": "confirmado",
+              "type": "string"
+            },
+            {
+              "name": "posEnviado",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "cvx-0283-criar-convexa-empresas",
+      "name": "Criar convexa_empresas",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        770,
+        300
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "convexa_empresas",
+        "columns": {
+          "column": [
+            {
+              "name": "phoneNumberId",
+              "type": "string"
+            },
+            {
+              "name": "nome",
+              "type": "string"
+            },
+            {
+              "name": "endereco",
+              "type": "string"
+            },
+            {
+              "name": "mapsUrl",
+              "type": "string"
+            },
+            {
+              "name": "horarios",
+              "type": "string"
+            },
+            {
+              "name": "pagamento",
+              "type": "string"
+            },
+            {
+              "name": "telefone",
+              "type": "string"
+            },
+            {
+              "name": "instagram",
+              "type": "string"
+            },
+            {
+              "name": "site",
+              "type": "string"
+            },
+            {
+              "name": "observacoes",
+              "type": "string"
+            },
+            {
+              "name": "telefoneAtendente",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "cvx-0284-criar-convexa-envios",
+      "name": "Criar convexa_envios",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        990,
+        300
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "convexa_envios",
+        "columns": {
+          "column": [
+            {
+              "name": "em",
+              "type": "string"
+            },
+            {
+              "name": "phoneNumberId",
+              "type": "string"
+            },
+            {
+              "name": "para",
+              "type": "string"
+            },
+            {
+              "name": "tipo",
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "type": "string"
+            },
+            {
+              "name": "metaId",
+              "type": "string"
+            },
+            {
+              "name": "erro",
+              "type": "string"
+            },
+            {
+              "name": "resumo",
+              "type": "string"
+            },
+            {
+              "name": "origem",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "cvx-0285-criar-convexa-erros",
+      "name": "Criar convexa_erros",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1210,
+        300
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "convexa_erros",
+        "columns": {
+          "column": [
+            {
+              "name": "em",
+              "type": "string"
+            },
+            {
+              "name": "tipo",
+              "type": "string"
+            },
+            {
+              "name": "mensagem",
+              "type": "string"
+            },
+            {
+              "name": "workflow",
+              "type": "string"
+            },
+            {
+              "name": "node",
+              "type": "string"
+            },
+            {
+              "name": "execucao",
+              "type": "string"
+            },
+            {
+              "name": "url",
+              "type": "string"
+            },
+            {
+              "name": "detalhe",
+              "type": "string"
+            },
+            {
+              "name": "chave",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "cvx-0286-pronto",
+      "name": "Pronto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1430,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return [{ json: { ok: true, tabelas: [\"convexa_conversas\",\"convexa_agendamentos\",\"convexa_empresas\",\"convexa_envios\",\"convexa_erros\"] } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Rodar instalação": {
+      "main": [
+        [
+          {
+            "node": "Começar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instalar por webhook": {
+      "main": [
+        [
+          {
+            "node": "Começar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Começar": {
+      "main": [
+        [
+          {
+            "node": "Criar convexa_conversas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar convexa_conversas": {
+      "main": [
+        [
+          {
+            "node": "Criar convexa_agendamentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar convexa_agendamentos": {
+      "main": [
+        [
+          {
+            "node": "Criar convexa_empresas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar convexa_empresas": {
+      "main": [
+        [
+          {
+            "node": "Criar convexa_envios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar convexa_envios": {
+      "main": [
+        [
+          {
+            "node": "Criar convexa_erros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar convexa_erros": {
+      "main": [
+        [
+          {
+            "node": "Pronto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "gwRuN7kMLozuUyEf"
+  },
+  "pinData": {},
+  "active": false,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

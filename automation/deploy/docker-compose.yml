@@ -137,7 +137,7 @@ services:
       CONVEXA_API_URL: http://api:3000
       AUTOMACAO_URL: http://automacao:3100
       GRAPH_API_BASE: https://graph.facebook.com
-      GRAPH_API_VERSION: ${GRAPH_API_VERSION:-v24.0}
+      GRAPH_API_VERSION: ${GRAPH_API_VERSION:-v25.0}
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:?defina no .env}
     volumes:
       - n8n:/home/node/.n8n

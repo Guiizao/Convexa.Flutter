@@ -1,0 +1,265 @@
+{
+  "id": "gwRuN7kMLozuUyEf",
+  "name": "Convexa - 14 Tratamento de Erros",
+  "nodes": [
+    {
+      "id": "cvx-0239-quando-um-workflow-falhar",
+      "name": "Quando um workflow falhar",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        120
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "cvx-0240-when-executed-by-another-workflow",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        320
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "cvx-0241-montar-registro",
+      "name": "Montar registro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        220
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const __env = (k, d = \"\") => { try { const v = $env[k]; return v === undefined || v === null || v === \"\" ? d : String(v); } catch (e) { return d; } };\nconst cfg = {\n  apiUrl: __env(\"CONVEXA_API_URL\", \"https://api-convexa.altvia.cloud\").replace(/\\/+$/, \"\"),\n  graphBase: __env(\"GRAPH_API_BASE\", \"https://graph.facebook.com\").replace(/\\/+$/, \"\"),\n  graphVersion: __env(\"GRAPH_API_VERSION\", \"v25.0\"),\n  verifyToken: __env(\"WHATSAPP_VERIFY_TOKEN\", \"\"),\n  testToken: __env(\"CONVEXA_TEST_TOKEN\", \"\"),\n  exigirAssinatura: __env(\"CONVEXA_EXIGIR_ASSINATURA\", \"true\") !== \"false\",\n  humanHours: Math.max(Number(__env(\"CONVEXA_HUMANO_HORAS\", \"12\")) || 12, 0.25),\n  reminderHours: Math.max(Number(__env(\"CONVEXA_LEMBRETE_HORAS\", \"24\")) || 24, 1),\n  tplLembrete: __env(\"CONVEXA_TEMPLATE_LEMBRETE\", \"convexa_lembrete\"),\n  tplPos: __env(\"CONVEXA_TEMPLATE_POS\", \"\"),\n  tplLang: __env(\"CONVEXA_TEMPLATE_IDIOMA\", \"pt_BR\"),\n  alertUrl: __env(\"CONVEXA_ALERTA_WEBHOOK_URL\", \"\"),\n  ia: __env(\"CONVEXA_IA\", \"auto\"),\n  wf: {\"WF00\":\"cs1xHHp13UwQIpkR\",\"WF01\":\"FjGdfMtAM5nAZu4Q\",\"WF02\":\"rqqKIPjaeAqEy8GW\",\"WF03\":\"tPmuN5i2mwY8whUh\",\"WF04\":\"3vGOPsRRUJxxJtqm\",\"WF05\":\"teeIpYOjy1LeRaHT\",\"WF06\":\"wHl9gupQNIMgqkid\",\"WF07\":\"fJByu5qfUoLICkhT\",\"WF08\":\"o5UVBX2a06p0VBGb\",\"WF09\":\"cyESqJD5y2H5klTX\",\"WF10\":\"u5PofWGIegW0fxr1\",\"WF11\":\"FDRYEf2GO7QqaRU1\",\"WF12\":\"P5jQ0lMlJKm3n4Z7\",\"WF13\":\"1iP6wUyAgMECKreB\",\"WF14\":\"gwRuN7kMLozuUyEf\",\"WF15\":\"cvxIntegraMeta15\",\"WF16\":\"cvxRegistros0016\",\"WF17\":\"cvxInstalacao017\"},\n};\n// Monta o registro do erro (Error Trigger) ou do alerta (chamado por outro workflow).\n// `chave` evita repetir o mesmo aviso: um por tipo/origem por hora (ou por dia, na cota).\nconst j = $input.first().json ?? {};\nconst hora = new Date().toISOString().slice(0, 13);\nlet linha;\nif (j.execution || j.workflow) {\n  const ex = j.execution ?? {};\n  const node = ex.lastNodeExecuted ?? ex.error?.node?.name ?? \"\";\n  linha = {\n    tipo: \"ERRO_WORKFLOW\",\n    mensagem: String(ex.error?.message ?? \"erro sem mensagem\").slice(0, 500),\n    workflow: String(j.workflow?.name ?? \"\"),\n    node: String(node),\n    execucao: String(ex.id ?? \"\"),\n    url: String(ex.url ?? \"\"),\n    detalhe: JSON.stringify({ descricao: ex.error?.description ?? null, stack: String(ex.error?.stack ?? \"\").slice(0, 1500), modo: ex.mode ?? null }),\n    chave: `ERRO:${j.workflow?.id ?? \"\"}:${node}:${hora}`,\n  };\n} else {\n  linha = {\n    tipo: String(j.tipo ?? \"ALERTA\"),\n    mensagem: String(j.mensagem ?? \"\").slice(0, 1000),\n    workflow: String(j.origem ?? \"\"),\n    node: \"\",\n    execucao: \"\",\n    url: \"\",\n    detalhe: JSON.stringify(j.detalhe ?? {}).slice(0, 2000),\n    chave: String(j.chave ?? `${j.tipo ?? \"ALERTA\"}:${hora}`),\n  };\n}\nlinha.em = new Date().toISOString();\nconst icone = linha.tipo === \"ATENDIMENTO_SOLICITADO\" ? \"🙋\" : linha.tipo.startsWith(\"ERRO\") || linha.tipo.startsWith(\"FALHA\") ? \"🔴\" : \"⚠️\";\nconst texto = `${icone} Convexa — ${linha.tipo}\\n${linha.mensagem}${linha.workflow ? `\\nWorkflow: ${linha.workflow}${linha.node ? \" / \" + linha.node : \"\"}` : \"\"}${linha.url ? `\\n${linha.url}` : \"\"}`;\nreturn [{ json: { cfg, linha, texto } }];\n"
+      }
+    },
+    {
+      "id": "cvx-0242-ainda-nao-registrado-",
+      "name": "Ainda não registrado?",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        220
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_erros"
+        },
+        "resource": "row",
+        "operation": "rowNotExists",
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chave",
+              "condition": "eq",
+              "keyValue": "={{ $json.linha.chave }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cvx-0243-linha-do-erro",
+      "name": "Linha do erro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        140
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().map((i) => ({ json: i.json.linha }));"
+      }
+    },
+    {
+      "id": "cvx-0244-registrar",
+      "name": "Registrar",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        140
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_erros"
+        },
+        "resource": "row",
+        "operation": "insert",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0246-tem-webhook-de-alerta-",
+      "name": "Tem webhook de alerta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        320
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c245",
+              "leftValue": "={{ !!$json.cfg.alertUrl }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0247-avisar-a-equipe",
+      "name": "Avisar a equipe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.cfg.alertUrl }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.texto, content: $json.texto, tipo: $json.linha.tipo, mensagem: $json.linha.mensagem, workflow: $json.linha.workflow, execucao: $json.linha.url || $json.linha.execucao, em: $json.linha.em }) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Quando um workflow falhar": {
+      "main": [
+        [
+          {
+            "node": "Montar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Montar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar registro": {
+      "main": [
+        [
+          {
+            "node": "Ainda não registrado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ainda não registrado?": {
+      "main": [
+        [
+          {
+            "node": "Linha do erro",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tem webhook de alerta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linha do erro": {
+      "main": [
+        [
+          {
+            "node": "Registrar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem webhook de alerta?": {
+      "main": [
+        [
+          {
+            "node": "Avisar a equipe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

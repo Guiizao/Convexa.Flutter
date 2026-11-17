@@ -1,0 +1,631 @@
+{
+  "id": "FDRYEf2GO7QqaRU1",
+  "name": "Convexa - 11 Lembrete de Agendamento",
+  "nodes": [
+    {
+      "id": "cvx-0192-a-cada-15-minutos",
+      "name": "A cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cvx-0193-when-executed-by-another-workflow",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "cvx-0194-rodar-agora-webhook-",
+      "name": "Rodar agora (webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        600
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "convexa/lembretes",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "c0e1b2a3-4d5e-4f60-8a71-9b2c3d4e5f11",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nCSP3kSFDlY3r6RU",
+          "name": "Convexa - Internal API Key"
+        }
+      }
+    },
+    {
+      "id": "cvx-0195-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const __env = (k, d = \"\") => { try { const v = $env[k]; return v === undefined || v === null || v === \"\" ? d : String(v); } catch (e) { return d; } };\nconst cfg = {\n  apiUrl: __env(\"CONVEXA_API_URL\", \"https://api-convexa.altvia.cloud\").replace(/\\/+$/, \"\"),\n  graphBase: __env(\"GRAPH_API_BASE\", \"https://graph.facebook.com\").replace(/\\/+$/, \"\"),\n  graphVersion: __env(\"GRAPH_API_VERSION\", \"v25.0\"),\n  verifyToken: __env(\"WHATSAPP_VERIFY_TOKEN\", \"\"),\n  testToken: __env(\"CONVEXA_TEST_TOKEN\", \"\"),\n  exigirAssinatura: __env(\"CONVEXA_EXIGIR_ASSINATURA\", \"true\") !== \"false\",\n  humanHours: Math.max(Number(__env(\"CONVEXA_HUMANO_HORAS\", \"12\")) || 12, 0.25),\n  reminderHours: Math.max(Number(__env(\"CONVEXA_LEMBRETE_HORAS\", \"24\")) || 24, 1),\n  tplLembrete: __env(\"CONVEXA_TEMPLATE_LEMBRETE\", \"convexa_lembrete\"),\n  tplPos: __env(\"CONVEXA_TEMPLATE_POS\", \"\"),\n  tplLang: __env(\"CONVEXA_TEMPLATE_IDIOMA\", \"pt_BR\"),\n  alertUrl: __env(\"CONVEXA_ALERTA_WEBHOOK_URL\", \"\"),\n  ia: __env(\"CONVEXA_IA\", \"auto\"),\n  wf: {\"WF00\":\"cs1xHHp13UwQIpkR\",\"WF01\":\"FjGdfMtAM5nAZu4Q\",\"WF02\":\"rqqKIPjaeAqEy8GW\",\"WF03\":\"tPmuN5i2mwY8whUh\",\"WF04\":\"3vGOPsRRUJxxJtqm\",\"WF05\":\"teeIpYOjy1LeRaHT\",\"WF06\":\"wHl9gupQNIMgqkid\",\"WF07\":\"fJByu5qfUoLICkhT\",\"WF08\":\"o5UVBX2a06p0VBGb\",\"WF09\":\"cyESqJD5y2H5klTX\",\"WF10\":\"u5PofWGIegW0fxr1\",\"WF11\":\"FDRYEf2GO7QqaRU1\",\"WF12\":\"P5jQ0lMlJKm3n4Z7\",\"WF13\":\"1iP6wUyAgMECKreB\",\"WF14\":\"gwRuN7kMLozuUyEf\",\"WF15\":\"cvxIntegraMeta15\",\"WF16\":\"cvxRegistros0016\",\"WF17\":\"cvxInstalacao017\"},\n};\nreturn [{ json: { cfg } }];"
+      }
+    },
+    {
+      "id": "cvx-0196-conversas",
+      "name": "Conversas",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_conversas"
+        },
+        "resource": "row",
+        "operation": "get",
+        "matchType": "allConditions",
+        "filters": {},
+        "returnAll": true
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "cvx-0197-agendamentos",
+      "name": "Agendamentos",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_agendamentos"
+        },
+        "resource": "row",
+        "operation": "get",
+        "matchType": "allConditions",
+        "filters": {},
+        "returnAll": true
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "cvx-0198-clientes-a-verificar",
+      "name": "Clientes a verificar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Quem precisa ser verificado nesta rodada:\n// 1) clientes com horário ativo nas próximas (lembrete + 1) horas que ainda não receberam lembrete;\n// 2) clientes que conversaram nos últimos 30 dias e não são sincronizados há 12 h (no máximo 30 por\n//    rodada), para descobrir horários marcados pelo painel e cancelamentos.\n// A API só lista agendamentos por cliente (token da conversa), por isso a verificação é por cliente.\nconst cfg = $(\"Config\").first().json.cfg;\nconst convs = $(\"Conversas\").all().map((i) => i.json).filter((r) => r.chave && r.phone && r.phoneNumberId);\nconst ags = $(\"Agendamentos\").all().map((i) => i.json).filter((r) => r.appointmentId);\nconst agora = Date.now();\nconst H = 3600e3;\nconst alvo = new Map();\nconst porChave = new Map(convs.map((c) => [c.chave, c]));\nconst incluir = (chave, motivo) => {\n  const c = porChave.get(chave);\n  if (!c || alvo.has(chave)) return;\n  alvo.set(chave, { cfg, chave, phoneNumberId: c.phoneNumberId, phone: c.phone, waId: c.waId, nome: c.nome, lastInboundAt: c.lastInboundAt, conversa: c.conversa, motivo });\n};\nfor (const a of ags) {\n  const ini = Date.parse(a.startAt);\n  if (a.status === \"ATIVO\" && !a.lembreteEnviado && ini > agora && ini - agora <= (cfg.reminderHours + 1) * H) incluir(a.chave, \"lembrete\");\n}\nconst parados = convs\n  .filter((c) => Date.parse(c.lastInboundAt || 0) > agora - 30 * 24 * H && (!c.sincronizadoEm || Date.parse(c.sincronizadoEm) < agora - 12 * H))\n  .sort((a, b) => String(a.sincronizadoEm || \"\").localeCompare(String(b.sincronizadoEm || \"\")))\n  .slice(0, 30);\nfor (const c of parados) incluir(c.chave, \"sincronizar\");\nreturn [...alvo.values()].map((json) => ({ json }));\n"
+      }
+    },
+    {
+      "id": "cvx-0199-abrir-sessao",
+      "name": "Abrir sessão",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.cfg.apiUrl }}/internal/conversation/session",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phoneNumberId: $json.phoneNumberId, phone: $json.phone }) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nCSP3kSFDlY3r6RU",
+          "name": "Convexa - Internal API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "cvx-0200-listar-agendamentos-do-cliente",
+      "name": "Listar agendamentos do cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Clientes a verificar').item.json.cfg.apiUrl }}/internal/conversation/appointments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify({ Authorization: 'Bearer ' + ($json.body?.token ?? 'sem-sessao') }) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nCSP3kSFDlY3r6RU",
+          "name": "Convexa - Internal API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "cvx-0201-reconciliar-e-montar-lembretes",
+      "name": "Reconciliar e montar lembretes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Para cada cliente verificado: atualiza a tabela de agendamentos com o que a API diz, marca como\n// cancelado o que sumiu da agenda e manda o lembrete de quem está dentro da janela.\n// Lembrete: com a janela de 24 h aberta vai com botões; fechada, vai pelo modelo aprovado na Meta\n// (cfg.tplLembrete, padrão \"convexa_lembrete\": 6 variáveis e 3 botões de resposta rápida).\nconst clientes = $(\"Clientes a verificar\").all().map((i) => i.json);\nconst sessoes = $(\"Abrir sessão\").all().map((i) => i.json);\nconst listas = $input.all().map((i) => i.json);\nconst ags = $(\"Agendamentos\").all().map((i) => i.json).filter((r) => r.appointmentId);\nconst agora = Date.now();\nconst H = 3600e3;\nconst out = [];\nconst DIAS = [\"domingo\", \"segunda\", \"terça\", \"quarta\", \"quinta\", \"sexta\", \"sábado\"];\nconst quando = (a) => `${a.weekday || DIAS[new Date(a.date + \"T12:00:00Z\").getUTCDay()]}, ${a.date.slice(8, 10)}/${a.date.slice(5, 7)}`;\nconst limpa = (s) => String(s ?? \"\").replace(/[\\n\\t]+/g, \" \").replace(/ {4,}/g, \"   \").trim() || \"-\";\n\nclientes.forEach((cli, i) => {\n  const sess = sessoes[i] ?? {};\n  const lst = listas[i] ?? {};\n  const cfg = cli.cfg;\n  if (!(lst.statusCode >= 200 && lst.statusCode < 300) || !Array.isArray(lst.body)) return; // tenta de novo na próxima rodada\n  const empresa = sess.body?.business?.name ?? \"\";\n  const nome = sess.body?.customer?.name || cli.nome || \"\";\n  const futuros = lst.body;\n  const ids = new Set(futuros.map((a) => a.id));\n  const salvos = new Map(ags.filter((r) => r.chave === cli.chave).map((r) => [r.appointmentId, r]));\n\n  // sumiu da lista antes de começar: cancelado (pelo painel ou por outra pessoa)\n  for (const [id, r] of salvos) if (r.status === \"ATIVO\" && !ids.has(id) && Date.parse(r.startAt) > agora) out.push({ json: { tipo: \"agendamento\", linha: { appointmentId: id, status: \"CANCELADO\" } } });\n\n  let conv = {};\n  try { conv = cli.conversa ? JSON.parse(cli.conversa) : {}; } catch (e) { conv = {}; }\n  const janelaAberta = Date.parse(cli.lastInboundAt || 0) > agora - 23.5 * H;\n  let lembrou = false;\n\n  for (const a of futuros) {\n    const antes = salvos.get(a.id);\n    const mudouHorario = antes && antes.startAt && Date.parse(antes.startAt) !== Date.parse(a.startAt);\n    const linha = {\n      appointmentId: a.id, chave: cli.chave, phoneNumberId: cli.phoneNumberId, waId: cli.waId, phone: cli.phone, nome,\n      servico: a.service?.name ?? \"\", profissional: a.employee?.name ?? \"\", startAt: new Date(a.startAt).toISOString(), endAt: new Date(a.endAt).toISOString(),\n      data: a.date, hora: a.time, status: \"ATIVO\",\n      ...(antes && !mudouHorario ? {} : { lembreteEnviado: \"\", posEnviado: \"\" }),\n    };\n    const ini = Date.parse(a.startAt);\n    const jaLembrado = antes && !mudouHorario && antes.lembreteEnviado;\n    const dentro = ini - agora <= cfg.reminderHours * H && ini - agora > 45 * 60e3;\n    if (!jaLembrado && dentro && !lembrou) {\n      const botoesIds = [\"lem:sim:\" + a.id, \"lem:remarcar:\" + a.id, \"lem:cancelar:\" + a.id];\n      let reply = null;\n      if (janelaAberta)\n        reply = { kind: \"buttons\", text: `⏰ *Lembrete${nome ? \", \" + nome.split(\" \")[0] : \"\"}!*\\n\\nVocê tem *${a.service?.name ?? \"um horário\"}* ${quando(a)} às *${a.time}*${a.employee?.name ? ` com ${a.employee.name}` : \"\"}${empresa ? ` na ${empresa}` : \"\"}.\\n\\nPosso confirmar sua presença?`, buttons: [{ id: botoesIds[0], title: \"Confirmo presença\" }, { id: botoesIds[1], title: \"Remarcar\" }, { id: botoesIds[2], title: \"Cancelar\" }] };\n      else if (cfg.tplLembrete)\n        reply = { kind: \"template\", name: cfg.tplLembrete, language: cfg.tplLang, params: [nome.split(\" \")[0] || \"cliente\", empresa, a.service?.name, quando(a), a.time, a.employee?.name || \"nossa equipe\"].map(limpa), buttons: botoesIds };\n      if (reply) {\n        lembrou = true;\n        linha.lembreteEnviado = new Date().toISOString();\n        out.push({ json: { tipo: \"envio\", acao: \"enviar\", cfg, origem: \"lembrete\", phoneNumberId: cli.phoneNumberId, waId: cli.waId, replies: [reply] } });\n        // a próxima resposta do cliente vai para o WF12 (se ele não estiver no meio de outra conversa)\n        if ((conv.mode ?? \"AI\") !== \"HUMAN\" && (conv.step ?? \"IDLE\") === \"IDLE\") {\n          const nova = { mode: \"AI\", ...conv, flow: \"lembrete\", step: \"WAITING_APPOINTMENT_CONFIRMATION_REPLY\", data: { appt: a }, stepAt: new Date().toISOString() };\n          out.push({ json: { tipo: \"conversa\", linha: { chave: cli.chave, conversa: JSON.stringify(nova), step: nova.step } } });\n        }\n      } else linha.lembreteEnviado = \"sem_janela_e_sem_modelo\";\n    }\n    out.push({ json: { tipo: \"agendamento\", linha } });\n  }\n  out.push({ json: { tipo: \"conversa\", linha: { chave: cli.chave, sincronizadoEm: new Date().toISOString() } } });\n});\nreturn out;\n"
+      }
+    },
+    {
+      "id": "cvx-0205-tipo",
+      "name": "Tipo",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c202",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "agendamento",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "agendamento"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c203",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "conversa",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "conversa"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c204",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "envio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "envio"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0206-linha-do-agendamento",
+      "name": "Linha do agendamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().map((i) => ({ json: i.json.linha }));"
+      }
+    },
+    {
+      "id": "cvx-0207-salvar-agendamento",
+      "name": "Salvar agendamento",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        120
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_agendamentos"
+        },
+        "resource": "row",
+        "operation": "upsert",
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "appointmentId",
+              "condition": "eq",
+              "keyValue": "={{ $json.appointmentId }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0208-linha-da-conversa",
+      "name": "Linha da conversa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().map((i) => ({ json: i.json.linha }));"
+      }
+    },
+    {
+      "id": "cvx-0209-atualizar-conversa",
+      "name": "Atualizar conversa",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        300
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_conversas"
+        },
+        "resource": "row",
+        "operation": "upsert",
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chave",
+              "condition": "eq",
+              "keyValue": "={{ $json.chave }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0210-call-convexa-15-integracao-meta-enviar-",
+      "name": "Call 'Convexa - 15 Integração Meta' (enviar)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        480
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "cvxIntegraMeta15",
+          "cachedResultName": "Convexa - 15 Integração Meta (envio e assinatura)",
+          "cachedResultUrl": "/workflow/cvxIntegraMeta15"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "A cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rodar agora (webhook)": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Conversas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversas": {
+      "main": [
+        [
+          {
+            "node": "Agendamentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agendamentos": {
+      "main": [
+        [
+          {
+            "node": "Clientes a verificar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clientes a verificar": {
+      "main": [
+        [
+          {
+            "node": "Abrir sessão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abrir sessão": {
+      "main": [
+        [
+          {
+            "node": "Listar agendamentos do cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar agendamentos do cliente": {
+      "main": [
+        [
+          {
+            "node": "Reconciliar e montar lembretes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconciliar e montar lembretes": {
+      "main": [
+        [
+          {
+            "node": "Tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo": {
+      "main": [
+        [
+          {
+            "node": "Linha do agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Linha da conversa",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 15 Integração Meta' (enviar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linha do agendamento": {
+      "main": [
+        [
+          {
+            "node": "Salvar agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linha da conversa": {
+      "main": [
+        [
+          {
+            "node": "Atualizar conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "gwRuN7kMLozuUyEf"
+  },
+  "pinData": {},
+  "active": false,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

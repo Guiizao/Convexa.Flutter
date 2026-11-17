@@ -1,0 +1,266 @@
+{
+  "id": "cvxRegistros0016",
+  "name": "Convexa - 16 Registros",
+  "nodes": [
+    {
+      "id": "cvx-0269-when-executed-by-another-workflow",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "cvx-0270-separar-registros",
+      "name": "Separar registros",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Eventos da conversa → linhas da tabela convexa_agendamentos; alertas → WF14.\nconst j = $input.first().json ?? {};\nconst chave = `${j.phoneNumberId}:${j.phone}`;\nconst out = [];\nconst iso = (v) => (v ? new Date(v).toISOString() : \"\");\nfor (const ev of j.events ?? []) {\n  if ((ev.tipo === \"agendado\" || ev.tipo === \"remarcado\") && ev.appointment?.id) {\n    const a = ev.appointment;\n    out.push({\n      json: {\n        tipo: \"agendamento\",\n        linha: { appointmentId: a.id, chave, phoneNumberId: String(j.phoneNumberId), waId: String(j.waId), phone: String(j.phone), nome: String(j.nome ?? \"\"), servico: a.service?.name ?? \"\", profissional: a.employee?.name ?? \"\", startAt: iso(a.startAt), endAt: iso(a.endAt), data: a.date ?? \"\", hora: a.time ?? \"\", status: \"ATIVO\", lembreteEnviado: \"\", confirmado: \"\", posEnviado: \"\" },\n      },\n    });\n  } else if (ev.tipo === \"cancelado\" && ev.appointmentId) out.push({ json: { tipo: \"agendamento\", linha: { appointmentId: ev.appointmentId, chave, status: \"CANCELADO\" } } });\n  else if (ev.tipo === \"confirmado\" && ev.appointmentId) out.push({ json: { tipo: \"agendamento\", linha: { appointmentId: ev.appointmentId, chave, confirmado: new Date().toISOString() } } });\n}\nfor (const a of j.alerts ?? []) out.push({ json: { tipo: \"alerta\", alerta: { origem: \"WF00\", ...a } } });\nreturn out;\n"
+      }
+    },
+    {
+      "id": "cvx-0273-tipo",
+      "name": "Tipo",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c271",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "agendamento",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "agendamento"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c272",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "alerta",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "alerta"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0274-linha-do-agendamento",
+      "name": "Linha do agendamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().map((i) => ({ json: i.json.linha }));"
+      }
+    },
+    {
+      "id": "cvx-0275-salvar-agendamento",
+      "name": "Salvar agendamento",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_agendamentos"
+        },
+        "resource": "row",
+        "operation": "upsert",
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "appointmentId",
+              "condition": "eq",
+              "keyValue": "={{ $json.appointmentId }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0276-dados-do-alerta",
+      "name": "Dados do alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().map((i) => ({ json: i.json.alerta }));"
+      }
+    },
+    {
+      "id": "cvx-0277-call-convexa-14-tratamento-de-erros-",
+      "name": "Call 'Convexa - 14 Tratamento de Erros'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gwRuN7kMLozuUyEf",
+          "cachedResultName": "Convexa - 14 Tratamento de Erros",
+          "cachedResultUrl": "/workflow/gwRuN7kMLozuUyEf"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Separar registros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar registros": {
+      "main": [
+        [
+          {
+            "node": "Tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo": {
+      "main": [
+        [
+          {
+            "node": "Linha do agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dados do alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linha do agendamento": {
+      "main": [
+        [
+          {
+            "node": "Salvar agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados do alerta": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 14 Tratamento de Erros'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "gwRuN7kMLozuUyEf"
+  },
+  "pinData": {},
+  "active": false,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -4,7 +4,7 @@
 //     node meta-preparar.mjs verificar            # mostra o estado do número, do webhook e dos modelos
 //   ... node meta-preparar.mjs criar-modelos      # cria os modelos que faltam (categoria Utilidade, pt_BR)
 //   ... node meta-preparar.mjs assinar-webhook    # inscreve o app nos eventos da conta (se as mensagens não chegam)
-// Opcional: GRAPH_API_VERSION (padrão v24.0), GRAPH_API_BASE (padrão https://graph.facebook.com)
+// Opcional: GRAPH_API_VERSION (padrão v25.0), GRAPH_API_BASE (padrão https://graph.facebook.com)
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const templates = JSON.parse(readFileSync(join(here, "..", "simulator", "templates.json"), "utf8"));
 const { META_TOKEN, WABA_ID, PHONE_NUMBER_ID } = process.env;
-const BASE = `${process.env.GRAPH_API_BASE ?? "https://graph.facebook.com"}/${process.env.GRAPH_API_VERSION ?? "v24.0"}`;
+const BASE = `${process.env.GRAPH_API_BASE ?? "https://graph.facebook.com"}/${process.env.GRAPH_API_VERSION ?? "v25.0"}`;
 const action = process.argv[2] ?? "verificar";
 
 /** Regras da Meta que derrubam um modelo na análise. Devolve os problemas encontrados. */

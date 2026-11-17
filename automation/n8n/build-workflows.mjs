@@ -33,11 +33,15 @@ const workflow = (id, name, nodes, connections, extra = {}) => ({
   name,
   nodes,
   connections,
-  settings: { executionOrder: "v1", saveManualExecutions: true, callerPolicy: "workflowsFromSameOwner" },
+  settings: { executionOrder: "v1", saveManualExecutions: true, callerPolicy: "workflowsFromSameOwner", ...(extra.settings ?? {}) },
   pinData: {},
   active: false,
   ...extra,
 });
+
+// O token da Meta passa pelo envio e pelo download de mídia: esses workflows não guardam os dados
+// das execuções (o serviço convexa-automacao registra o que aconteceu, sem segredos).
+const SEM_LOG = { settings: { saveDataSuccessExecution: "none", saveDataErrorExecution: "none", saveManualExecutions: false } };
 
 const http = (name, { method, url, cred, body, headers, neverError = false, batch, timeout = 20000 }) =>
   node(name, "n8n-nodes-base.httpRequest", 4.5, {
@@ -160,7 +164,7 @@ return out;`,
   link(c, ok.name, over.name, 1);
   link(c, creds.name, send.name);
   link(c, send.name, result.name);
-  writeFileSync("workflows/1-enviar-lote.json", JSON.stringify(workflow(ID.enviar, "Convexa · Enviar mensagens (lote)", [t1, t2, flat, quota, ok, creds, send, result, over], c), null, 2));
+  writeFileSync("workflows/1-enviar-lote.json", JSON.stringify(workflow(ID.enviar, "Convexa · Enviar mensagens (lote)", [t1, t2, flat, quota, ok, creds, send, result, over], c, SEM_LOG), null, 2));
 }
 
 // =========================================================== 2. WhatsApp entrada
@@ -287,7 +291,7 @@ return [{ json: { ...prep, media } }];`,
   link(c, brain.name, send.name);
   writeFileSync(
     "workflows/2-whatsapp-entrada.json",
-    JSON.stringify(workflow(ID.entrada, "Convexa · WhatsApp (entrada)", [verify, tokenOk, challenge, deny, hook, prep, hasMedia, metaToken, download, brain, send], c), null, 2),
+    JSON.stringify(workflow(ID.entrada, "Convexa · WhatsApp (entrada)", [verify, tokenOk, challenge, deny, hook, prep, hasMedia, metaToken, download, brain, send], c, SEM_LOG), null, 2),
   );
 }
 

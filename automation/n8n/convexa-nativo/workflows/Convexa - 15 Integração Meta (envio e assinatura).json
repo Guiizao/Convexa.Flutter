@@ -1,0 +1,632 @@
+{
+  "id": "cvxIntegraMeta15",
+  "name": "Convexa - 15 Integração Meta (envio e assinatura)",
+  "nodes": [
+    {
+      "id": "cvx-0248-when-executed-by-another-workflow",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "cvx-0249-buscar-credenciais-da-meta",
+      "name": "Buscar credenciais da Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.cfg.apiUrl }}/internal/integrations/by-phone-number-id/{{ encodeURIComponent($json.phoneNumberId ?? '') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nCSP3kSFDlY3r6RU",
+          "name": "Convexa - Internal API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "id": "cvx-0251-validar-assinatura-",
+      "name": "Validar assinatura?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c250",
+              "leftValue": "={{ $('When Executed by Another Workflow').first().json.acao }}",
+              "rightValue": "validar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0252-calcular-assinatura",
+      "name": "Calcular assinatura",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        660,
+        160
+      ],
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "value": "={{ $('When Executed by Another Workflow').first().json.rawBody }}",
+        "secret": "={{ $json.body?.metaAppSecret || 'sem-app-secret' }}",
+        "dataPropertyName": "assinaturaCalculada",
+        "encoding": "hex"
+      }
+    },
+    {
+      "id": "cvx-0253-resultado-da-validacao",
+      "name": "Resultado da validação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const inp = $('When Executed by Another Workflow').first().json;\nconst cred = $('Buscar credenciais da Meta').first().json ?? {};\nconst st = Number(cred.statusCode ?? 0);\nif (st === 404) return [{ json: { valida: false, motivo: \"sem_integracao\" } }];\nif (!(st >= 200 && st < 300)) return [{ json: { valida: false, motivo: \"api_indisponivel\", status: st } }];\nif (!cred.body?.metaAppSecret) return [{ json: { valida: !inp.cfg.exigirAssinatura, motivo: inp.cfg.exigirAssinatura ? \"sem_app_secret\" : \"sem_app_secret_aceito\" } }];\nconst calc = String($input.first().json.assinaturaCalculada ?? \"\");\nconst valida = inp.assinatura.length > 7 && inp.assinatura === \"sha256=\" + calc;\nreturn [{ json: { valida, motivo: valida ? \"ok\" : \"assinatura_invalida\" } }];"
+      }
+    },
+    {
+      "id": "cvx-0254-montar-mensagens",
+      "name": "Montar mensagens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        440
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Transforma as respostas do bot em mensagens da Graph API, respeitando os limites da Meta:\n// botões: até 3, título até 20 caracteres e sem repetir; lista: até 10 linhas, título até 24,\n// descrição até 72, botão até 20; corpo de interativa até 1024; texto até 4096;\n// variáveis de modelo sem quebra de linha e nunca vazias.\nconst inp = $(\"When Executed by Another Workflow\").first().json;\nconst cred = $(\"Buscar credenciais da Meta\").first().json ?? {};\nconst cfg = inp.cfg;\nconst base = { cfg, phoneNumberId: inp.phoneNumberId, origem: inp.origem ?? \"\", };\nconst replies = (inp.replies ?? []).filter((r) => r && (r.text || r.kind === \"template\"));\nif (!replies.length) return [];\n\nconst corta = (s, n) => {\n  s = String(s ?? \"\").trim();\n  return s.length > n ? s.slice(0, n - 1).trimEnd() + \"…\" : s;\n};\nconst unicos = (titulos) => {\n  const vistos = new Map();\n  return titulos.map((t) => {\n    let x = t, i = 2;\n    while (vistos.has(x)) x = corta(t, 17) + \" \" + i++;\n    vistos.set(x, true);\n    return x;\n  });\n};\nconst resumo = (r) => corta(String(r.text ?? r.name ?? \"\").replace(/\\s+/g, \" \"), 120);\nconst linhaSem = (r, status, erro) => ({ json: { linha: { em: new Date().toISOString(), phoneNumberId: inp.phoneNumberId, para: String(r.to || inp.waId), tipo: r.kind, status, metaId: \"\", erro, resumo: resumo(r), origem: base.origem }, ...(status === \"SEM_INTEGRACAO\" ? { alerta: { tipo: \"INTEGRACAO_META_AUSENTE\", mensagem: \"Não há token da Meta cadastrado no painel para este número: o bot não consegue responder.\", detalhe: { phoneNumberId: inp.phoneNumberId }, chave: \"INTEGRACAO:\" + inp.phoneNumberId + \":\" + new Date().toISOString().slice(0, 13), origem: \"WF15\" } } : {}) } });\n\n// Teste sem envio real: só registra\nif (inp.simular) return replies.map((r) => linhaSem(r, \"SIMULADO\", \"\"));\nconst st = Number(cred.statusCode ?? 0);\nif (st === 404 || (st >= 200 && st < 300 && !cred.body?.metaAccessToken)) return replies.map((r) => linhaSem(r, \"SEM_INTEGRACAO\", \"integração da Meta não encontrada\"));\nif (!(st >= 200 && st < 300)) return replies.map((r) => linhaSem(r, \"API_INDISPONIVEL\", `HTTP ${st}`));\n\nfunction graph(r, to) {\n  const msg = { messaging_product: \"whatsapp\", recipient_type: \"individual\", to };\n  if (r.kind === \"template\") {\n    const components = [];\n    const params = (r.params ?? []).map((p) => ({ type: \"text\", text: corta(String(p ?? \"\").replace(/[\\n\\t]+/g, \" \").replace(/ {4,}/g, \"   \"), 1000) || \"-\" }));\n    if (params.length) components.push({ type: \"body\", parameters: params });\n    (r.buttons ?? []).forEach((payload, i) => components.push({ type: \"button\", sub_type: \"quick_reply\", index: String(i), parameters: [{ type: \"payload\", payload: String(payload).slice(0, 256) }] }));\n    return [{ ...msg, type: \"template\", template: { name: r.name, language: { code: r.language || \"pt_BR\" }, ...(components.length ? { components } : {}) } }];\n  }\n  const texto = String(r.text ?? \"\").trim();\n  if (r.kind === \"buttons\" && (r.buttons?.length ?? 0) > 3) r = { ...r, kind: \"list\", button: \"Ver opções\", sections: [{ title: \"Opções\", rows: r.buttons }] };\n  const antes = [];\n  let corpo = texto;\n  if ((r.kind === \"buttons\" || r.kind === \"list\") && corpo.length > 1024) {\n    antes.push({ ...msg, type: \"text\", text: { body: corta(corpo, 4096), preview_url: false } });\n    corpo = \"Escolha uma opção:\";\n  }\n  if (r.kind === \"buttons\" && r.buttons?.length) {\n    const titulos = unicos(r.buttons.map((b) => corta(b.title, 20)));\n    return [...antes, { ...msg, type: \"interactive\", interactive: { type: \"button\", body: { text: corpo }, action: { buttons: r.buttons.slice(0, 3).map((b, i) => ({ type: \"reply\", reply: { id: String(b.id).slice(0, 256), title: titulos[i] } })) } } }];\n  }\n  if (r.kind === \"list\") {\n    let resta = 10;\n    const sections = (r.sections ?? [])\n      .map((s) => {\n        const rows = (s.rows ?? []).slice(0, resta);\n        resta -= rows.length;\n        const titulos = unicos(rows.map((x) => corta(x.title, 24)));\n        return { title: corta(s.title || \"Opções\", 24), rows: rows.map((x, i) => ({ id: String(x.id).slice(0, 200), title: titulos[i], ...(x.description ? { description: corta(x.description, 72) } : {}) })) };\n      })\n      .filter((s) => s.rows.length);\n    if (sections.length) return [...antes, { ...msg, type: \"interactive\", interactive: { type: \"list\", body: { text: corpo }, ...(r.footer ? { footer: { text: corta(r.footer, 60) } } : {}), action: { button: corta(r.button || \"Ver opções\", 20), sections } } }];\n  }\n  return [{ ...msg, type: \"text\", text: { body: corta(texto, 4096), preview_url: /https?:\\/\\//.test(texto) } }];\n}\n\nconst out = [];\nfor (const r of replies) {\n  const to = String(r.to || inp.waId).replace(/\\D/g, \"\");\n  for (const g of graph(r, to)) out.push({ json: { ...base, to, tipo: g.type === \"interactive\" ? g.interactive.type : g.type, resumo: resumo(r), interno: !!r.interno, graph: g } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "cvx-0256-pode-enviar-",
+      "name": "Pode enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        440
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c255",
+              "leftValue": "={{ !!$json.graph }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0257-consumir-cota",
+      "name": "Consumir cota",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        360
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.cfg.apiUrl }}/internal/messages/quota",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phoneNumberId: $json.phoneNumberId, count: 1 }) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 0
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nCSP3kSFDlY3r6RU",
+          "name": "Convexa - Internal API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "cvx-0260-dentro-da-cota-",
+      "name": "Dentro da cota?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c258",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 300,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            },
+            {
+              "id": "c259",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0261-enviar-pela-meta",
+      "name": "Enviar pela Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Montar mensagens').item.json.cfg.graphBase }}/{{ $('Montar mensagens').item.json.cfg.graphVersion }}/{{ $('Montar mensagens').item.json.phoneNumberId }}/messages",
+        "authentication": "none",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify({ Authorization: 'Bearer ' + $('Buscar credenciais da Meta').first().json.body.metaAccessToken }) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Montar mensagens').item.json.graph) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 400
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "cvx-0262-resultado-do-envio",
+      "name": "Resultado do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        280
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "// Resultado de cada envio para a Meta (um item por mensagem). Nunca inclui o token.\nconst m = $(\"Montar mensagens\").item.json;\nconst r = $input.item.json ?? {};\nconst st = Number(r.statusCode ?? 0);\nconst ok = st >= 200 && st < 300;\nconst e = r.body?.error ?? {};\nconst codigo = e.code ?? (r.error ? \"rede\" : \"\");\nconst linha = {\n  em: new Date().toISOString(),\n  phoneNumberId: m.phoneNumberId,\n  para: m.to,\n  tipo: m.tipo,\n  status: ok ? \"ENVIADO\" : \"ERRO\",\n  metaId: ok ? String(r.body?.messages?.[0]?.id ?? \"\") : \"\",\n  erro: ok ? \"\" : `${codigo} ${e.message ?? r.error?.message ?? \"HTTP \" + st}`.trim().slice(0, 300),\n  resumo: m.resumo,\n  origem: m.origem,\n};\n// Erros que exigem ação da equipe (token vencido, número bloqueado, modelo inexistente...)\n// 131047 = fora da janela de 24 h; 131026 = número sem WhatsApp; esses não viram alerta.\nlet alerta = null;\nif (!ok && ![131047, 131026, 131049].includes(Number(codigo))) {\n  const tipo = [190, 0].includes(Number(codigo)) || st === 401 ? \"META_TOKEN_INVALIDO\" : Number(codigo) === 132001 ? \"MODELO_META_INEXISTENTE\" : \"ENVIO_META_FALHOU\";\n  alerta = { tipo, mensagem: `Falha ao enviar para a Meta: ${linha.erro}`, detalhe: { phoneNumberId: m.phoneNumberId, codigo, status: st, tipoMensagem: m.tipo }, chave: `${tipo}:${m.phoneNumberId}:${new Date().toISOString().slice(0, 13)}`, origem: \"WF15\" };\n}\nreturn { json: { linha, ...(alerta ? { alerta } : {}) } };\n"
+      }
+    },
+    {
+      "id": "cvx-0263-cota-esgotada",
+      "name": "Cota esgotada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        460
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const m = $('Montar mensagens').item.json;\nconst r = $input.item.json;\nreturn { json: { linha: { em: new Date().toISOString(), phoneNumberId: m.phoneNumberId, para: m.to, tipo: m.tipo, status: r.statusCode === 402 ? \"COTA_ESGOTADA\" : \"COTA_FALHOU\", metaId: \"\", erro: String(r.body?.message ?? r.error?.message ?? r.statusCode ?? \"\").slice(0, 300), resumo: m.resumo, origem: m.origem }, alerta: { tipo: r.statusCode === 402 ? \"COTA_ESGOTADA\" : \"COTA_FALHOU\", mensagem: r.statusCode === 402 ? \"Limite mensal de mensagens atingido: o bot parou de responder. Aumente o limite no painel.\" : \"Não foi possível consumir a cota de mensagens (API fora?).\", detalhe: { phoneNumberId: m.phoneNumberId, status: r.statusCode }, chave: \"COTA:\" + m.phoneNumberId + \":\" + new Date().toISOString().slice(0, 10), origem: \"WF15\" } } };"
+      }
+    },
+    {
+      "id": "cvx-0264-sem-envio",
+      "name": "Sem envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        560
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().filter((i) => i.json.linha).map((i) => ({ json: i.json }));"
+      }
+    },
+    {
+      "id": "cvx-0265-linha-do-envio",
+      "name": "Linha do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().map((i) => ({ json: i.json.linha }));"
+      }
+    },
+    {
+      "id": "cvx-0266-registrar-envio",
+      "name": "Registrar envio",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        400
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_envios"
+        },
+        "resource": "row",
+        "operation": "insert",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0267-alertas-do-envio",
+      "name": "Alertas do envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().filter((i) => i.json.alerta).map((i) => ({ json: i.json.alerta }));"
+      }
+    },
+    {
+      "id": "cvx-0268-call-convexa-14-tratamento-de-erros-",
+      "name": "Call 'Convexa - 14 Tratamento de Erros'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gwRuN7kMLozuUyEf",
+          "cachedResultName": "Convexa - 14 Tratamento de Erros",
+          "cachedResultUrl": "/workflow/gwRuN7kMLozuUyEf"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Buscar credenciais da Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar credenciais da Meta": {
+      "main": [
+        [
+          {
+            "node": "Validar assinatura?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar assinatura?": {
+      "main": [
+        [
+          {
+            "node": "Calcular assinatura",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Montar mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular assinatura": {
+      "main": [
+        [
+          {
+            "node": "Resultado da validação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar mensagens": {
+      "main": [
+        [
+          {
+            "node": "Pode enviar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pode enviar?": {
+      "main": [
+        [
+          {
+            "node": "Consumir cota",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consumir cota": {
+      "main": [
+        [
+          {
+            "node": "Dentro da cota?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dentro da cota?": {
+      "main": [
+        [
+          {
+            "node": "Enviar pela Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cota esgotada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar pela Meta": {
+      "main": [
+        [
+          {
+            "node": "Resultado do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resultado do envio": {
+      "main": [
+        [
+          {
+            "node": "Linha do envio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alertas do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cota esgotada": {
+      "main": [
+        [
+          {
+            "node": "Linha do envio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alertas do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sem envio": {
+      "main": [
+        [
+          {
+            "node": "Linha do envio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alertas do envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linha do envio": {
+      "main": [
+        [
+          {
+            "node": "Registrar envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alertas do envio": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 14 Tratamento de Erros'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "gwRuN7kMLozuUyEf",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveExecutionProgress": false
+  },
+  "pinData": {},
+  "active": false,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

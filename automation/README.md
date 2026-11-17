@@ -11,6 +11,7 @@ painel usa na aba Automação. Roda ao lado da ConvexaAPI do Gabriel, sem alter�
 | `docs/04-proposta-backend.md` | Sugestões para a ConvexaAPI (não aplicadas) |
 | `service/` | `convexa-automacao` (Node 22 + TypeScript + Express + Postgres) |
 | `n8n/` | Workflows (gerados por `build-workflows.mjs`) e `setup.sh` para instalar |
+| `n8n/convexa-nativo/` | Os workflows da equipe ("Convexa - 00…17") completos: a conversa inteira no n8n, só com a ConvexaAPI, sem este serviço. Veja o README da pasta |
 | `deploy/` | Produção: `docker-compose.yml`, Caddy (HTTPS), `.env.example`, scripts |
 | `simulator/` | WhatsApp de mentira, compatível com a Graph API, para testar sem a Meta |
 | `alexa/` | Pacote da skill ("agenda convexa"): manifesto e modelo de voz pt-BR |
@@ -50,7 +51,7 @@ docker run -d --name convexa-n8n --network host \
   -e DB_TYPE=postgresdb -e DB_POSTGRESDB_HOST=127.0.0.1 -e DB_POSTGRESDB_DATABASE=n8n \
   -e DB_POSTGRESDB_USER=… -e DB_POSTGRESDB_PASSWORD=… \
   -e CONVEXA_API_URL=http://127.0.0.1:3000 -e AUTOMACAO_URL=http://127.0.0.1:3100 \
-  -e GRAPH_API_BASE=http://127.0.0.1:3200/graph -e GRAPH_API_VERSION=v21.0 \
+  -e GRAPH_API_BASE=http://127.0.0.1:3200/graph -e GRAPH_API_VERSION=v25.0 \
   -e WHATSAPP_VERIFY_TOKEN=<qualquer> -e GENERIC_TIMEZONE=America/Sao_Paulo \
   n8nio/n8n:2.47.5
 INTERNAL_API_KEY=… AUTOMACAO_KEY=… CONTAINER=convexa-n8n automation/n8n/setup.sh
@@ -67,6 +68,7 @@ esse App Secret, então a verificação de assinatura funciona igual à da Meta.
 
 ```bash
 cd automation/service && npm test        # 109 testes (o de Google Agenda precisa de DATABASE_URL e ENCRYPTION_KEY)
+cd automation/scripts && node bateria-nativo.mjs   # workflows "Convexa - 00…17": 21 cenários, 72 verificações
 cd automation/scripts && node e2e.mjs    # 24 verificações: simulador → n8n → serviço → API → n8n → simulador
 flutter test                             # painel: 26 testes
 node automation/scripts/layout-sweep.mjs http://localhost:8090 ./saida   # build web em modo debug

@@ -1,0 +1,1981 @@
+{
+  "id": "cs1xHHp13UwQIpkR",
+  "name": "Convexa - 00 Entrada de Mensagem",
+  "nodes": [
+    {
+      "id": "cvx-0001-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "convexa/message",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "8a920519-6b18-4d5b-8828-a2c19ee00b13"
+    },
+    {
+      "id": "cvx-0002-webhook-verificacao-da-meta-",
+      "name": "Webhook (verificação da Meta)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "convexa/message",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "6f1c2d0e-3b7a-4c55-9e0a-0c0b6e7a1f15"
+    },
+    {
+      "id": "cvx-0003-conferir-token-de-verificacao",
+      "name": "Conferir token de verificação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const __env = (k, d = \"\") => { try { const v = $env[k]; return v === undefined || v === null || v === \"\" ? d : String(v); } catch (e) { return d; } };\nconst cfg = {\n  apiUrl: __env(\"CONVEXA_API_URL\", \"https://api-convexa.altvia.cloud\").replace(/\\/+$/, \"\"),\n  graphBase: __env(\"GRAPH_API_BASE\", \"https://graph.facebook.com\").replace(/\\/+$/, \"\"),\n  graphVersion: __env(\"GRAPH_API_VERSION\", \"v25.0\"),\n  verifyToken: __env(\"WHATSAPP_VERIFY_TOKEN\", \"\"),\n  testToken: __env(\"CONVEXA_TEST_TOKEN\", \"\"),\n  exigirAssinatura: __env(\"CONVEXA_EXIGIR_ASSINATURA\", \"true\") !== \"false\",\n  humanHours: Math.max(Number(__env(\"CONVEXA_HUMANO_HORAS\", \"12\")) || 12, 0.25),\n  reminderHours: Math.max(Number(__env(\"CONVEXA_LEMBRETE_HORAS\", \"24\")) || 24, 1),\n  tplLembrete: __env(\"CONVEXA_TEMPLATE_LEMBRETE\", \"convexa_lembrete\"),\n  tplPos: __env(\"CONVEXA_TEMPLATE_POS\", \"\"),\n  tplLang: __env(\"CONVEXA_TEMPLATE_IDIOMA\", \"pt_BR\"),\n  alertUrl: __env(\"CONVEXA_ALERTA_WEBHOOK_URL\", \"\"),\n  ia: __env(\"CONVEXA_IA\", \"auto\"),\n  wf: {\"WF00\":\"cs1xHHp13UwQIpkR\",\"WF01\":\"FjGdfMtAM5nAZu4Q\",\"WF02\":\"rqqKIPjaeAqEy8GW\",\"WF03\":\"tPmuN5i2mwY8whUh\",\"WF04\":\"3vGOPsRRUJxxJtqm\",\"WF05\":\"teeIpYOjy1LeRaHT\",\"WF06\":\"wHl9gupQNIMgqkid\",\"WF07\":\"fJByu5qfUoLICkhT\",\"WF08\":\"o5UVBX2a06p0VBGb\",\"WF09\":\"cyESqJD5y2H5klTX\",\"WF10\":\"u5PofWGIegW0fxr1\",\"WF11\":\"FDRYEf2GO7QqaRU1\",\"WF12\":\"P5jQ0lMlJKm3n4Z7\",\"WF13\":\"1iP6wUyAgMECKreB\",\"WF14\":\"gwRuN7kMLozuUyEf\",\"WF15\":\"cvxIntegraMeta15\",\"WF16\":\"cvxRegistros0016\",\"WF17\":\"cvxInstalacao017\"},\n};\nconst q = $input.first().json.query ?? {};\nconst ok = !!cfg.verifyToken && q[\"hub.mode\"] === \"subscribe\" && q[\"hub.verify_token\"] === cfg.verifyToken;\nreturn [{ json: { ok, challenge: String(q[\"hub.challenge\"] ?? \"\") } }];"
+      }
+    },
+    {
+      "id": "cvx-0005-token-confere-",
+      "name": "Token confere?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c4",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0006-devolver-desafio",
+      "name": "Devolver desafio",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        660,
+        -80
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "cvx-0007-recusar-verificacao",
+      "name": "Recusar verificação",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        660,
+        80
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "token de verificação inválido",
+        "options": {
+          "responseCode": 403
+        }
+      }
+    },
+    {
+      "id": "cvx-0008-ler-requisicao",
+      "name": "Ler requisição",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const __env = (k, d = \"\") => { try { const v = $env[k]; return v === undefined || v === null || v === \"\" ? d : String(v); } catch (e) { return d; } };\nconst cfg = {\n  apiUrl: __env(\"CONVEXA_API_URL\", \"https://api-convexa.altvia.cloud\").replace(/\\/+$/, \"\"),\n  graphBase: __env(\"GRAPH_API_BASE\", \"https://graph.facebook.com\").replace(/\\/+$/, \"\"),\n  graphVersion: __env(\"GRAPH_API_VERSION\", \"v25.0\"),\n  verifyToken: __env(\"WHATSAPP_VERIFY_TOKEN\", \"\"),\n  testToken: __env(\"CONVEXA_TEST_TOKEN\", \"\"),\n  exigirAssinatura: __env(\"CONVEXA_EXIGIR_ASSINATURA\", \"true\") !== \"false\",\n  humanHours: Math.max(Number(__env(\"CONVEXA_HUMANO_HORAS\", \"12\")) || 12, 0.25),\n  reminderHours: Math.max(Number(__env(\"CONVEXA_LEMBRETE_HORAS\", \"24\")) || 24, 1),\n  tplLembrete: __env(\"CONVEXA_TEMPLATE_LEMBRETE\", \"convexa_lembrete\"),\n  tplPos: __env(\"CONVEXA_TEMPLATE_POS\", \"\"),\n  tplLang: __env(\"CONVEXA_TEMPLATE_IDIOMA\", \"pt_BR\"),\n  alertUrl: __env(\"CONVEXA_ALERTA_WEBHOOK_URL\", \"\"),\n  ia: __env(\"CONVEXA_IA\", \"auto\"),\n  wf: {\"WF00\":\"cs1xHHp13UwQIpkR\",\"WF01\":\"FjGdfMtAM5nAZu4Q\",\"WF02\":\"rqqKIPjaeAqEy8GW\",\"WF03\":\"tPmuN5i2mwY8whUh\",\"WF04\":\"3vGOPsRRUJxxJtqm\",\"WF05\":\"teeIpYOjy1LeRaHT\",\"WF06\":\"wHl9gupQNIMgqkid\",\"WF07\":\"fJByu5qfUoLICkhT\",\"WF08\":\"o5UVBX2a06p0VBGb\",\"WF09\":\"cyESqJD5y2H5klTX\",\"WF10\":\"u5PofWGIegW0fxr1\",\"WF11\":\"FDRYEf2GO7QqaRU1\",\"WF12\":\"P5jQ0lMlJKm3n4Z7\",\"WF13\":\"1iP6wUyAgMECKreB\",\"WF14\":\"gwRuN7kMLozuUyEf\",\"WF15\":\"cvxIntegraMeta15\",\"WF16\":\"cvxRegistros0016\",\"WF17\":\"cvxInstalacao017\"},\n};\n// Corpo exatamente como chegou (a assinatura da Meta é calculada sobre ele)\nconst item = $input.first();\nlet raw = \"\";\ntry { if (item.binary?.data) raw = (await this.helpers.getBinaryDataBuffer(0, \"data\")).toString(\"utf8\"); } catch (e) { raw = \"\"; }\nconst h = item.json.headers ?? {};\nlet body = item.json.body;\nif (!raw) raw = JSON.stringify(body ?? {});\nif (!body || typeof body !== \"object\" || !Object.keys(body).length) { try { body = JSON.parse(raw); } catch (e) { body = {}; } }\nconst meta = body?.object === \"whatsapp_business_account\" || Array.isArray(body?.entry);\nconst phoneNumberId = meta ? body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? null : body.phoneNumberId ?? null;\nreturn [{ json: { acao: \"validar\", cfg, origem: meta ? \"meta\" : \"teste\", rawBody: raw, assinatura: String(h[\"x-hub-signature-256\"] ?? \"\"), autorizacao: String(h[\"authorization\"] ?? \"\"), phoneNumberId, body } }];"
+      }
+    },
+    {
+      "id": "cvx-0010-veio-da-meta-",
+      "name": "Veio da Meta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c9",
+              "leftValue": "={{ $json.origem }}",
+              "rightValue": "meta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0011-call-convexa-15-integracao-meta-assinatu",
+      "name": "Call 'Convexa - 15 Integração Meta' (assinatura)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        220
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "cvxIntegraMeta15",
+          "cachedResultName": "Convexa - 15 Integração Meta (envio e assinatura)",
+          "cachedResultUrl": "/workflow/cvxIntegraMeta15"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "cvx-0012-validar-token-de-teste",
+      "name": "Validar token de teste",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const j = $input.first().json;\nconst ok = !!j.cfg.testToken && j.autorizacao === \"Bearer \" + j.cfg.testToken;\nreturn [{ json: { valida: ok, motivo: ok ? \"ok\" : j.cfg.testToken ? \"token_de_teste_invalido\" : \"testes_desligados\" } }];"
+      }
+    },
+    {
+      "id": "cvx-0014-api-autorizada-",
+      "name": "API Autorizada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c13",
+              "leftValue": "={{ $json.valida }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0015-respond-401",
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1100,
+        480
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: { code: \"UNAUTHORIZED\", motivo: $json.motivo ?? \"assinatura_invalida\" } }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "id": "cvx-0017-recusa-por-configuracao-",
+      "name": "Recusa por configuração?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        480
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c16",
+              "leftValue": "={{ ['sem_integracao','sem_app_secret','api_indisponivel'].includes($json.motivo) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0018-alerta-de-configuracao",
+      "name": "Alerta de configuração",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const j = $('API Autorizada?').first().json;\nconst req = $('Ler requisição').first().json;\nconst textos = { sem_integracao: \"O número da Meta não tem integração cadastrada no painel (token da Meta).\", sem_app_secret: \"A integração da Meta está sem App Secret no painel: não dá para conferir a assinatura dos webhooks.\", api_indisponivel: \"A ConvexaAPI não respondeu ao conferir a assinatura do webhook.\" };\nreturn [{ json: { tipo: \"WEBHOOK_RECUSADO\", mensagem: (textos[j.motivo] ?? j.motivo) + \" phoneNumberId=\" + (req.phoneNumberId ?? \"?\"), detalhe: { motivo: j.motivo, phoneNumberId: req.phoneNumberId }, chave: \"RECUSA:\" + j.motivo + \":\" + (req.phoneNumberId ?? \"\") + \":\" + new Date().toISOString().slice(0, 13), origem: \"WF00\" } }];"
+      }
+    },
+    {
+      "id": "cvx-0019-call-convexa-14-tratamento-de-erros-",
+      "name": "Call 'Convexa - 14 Tratamento de Erros'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        480
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gwRuN7kMLozuUyEf",
+          "cachedResultName": "Convexa - 14 Tratamento de Erros",
+          "cachedResultUrl": "/workflow/gwRuN7kMLozuUyEf"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "cvx-0021-responder-ja-",
+      "name": "Responder já?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        220
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c20",
+              "leftValue": "={{ $('Ler requisição').first().json.origem }}",
+              "rightValue": "meta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0022-responder-a-meta",
+      "name": "Responder à Meta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1320,
+        140
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "EVENT_RECEIVED",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "cvx-0023-normaliza-texto",
+      "name": "Normaliza Texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Transforma o evento (Meta ou formato de teste) em uma mensagem por item.\n// Ignora status de entrega/leitura, reações e eventos de sistema.\nconst req = $(\"Ler requisição\").first().json;\nconst body = req.body ?? {};\nconst cfg = req.cfg;\nconst out = [];\n\n// Telefone no formato da API (+55DDNNNNNNNNN). O WhatsApp às vezes entrega celular do Brasil sem o 9.\nconst paraE164 = (wa) => {\n  let d = String(wa ?? \"\").replace(/\\D/g, \"\");\n  if (/^55\\d{10}$/.test(d) && /^[6-9]/.test(d.slice(4))) d = d.slice(0, 4) + \"9\" + d.slice(4);\n  return d ? \"+\" + d : \"\";\n};\nconst IGNORAR = new Set([\"reaction\", \"system\", \"request_welcome\", \"unsupported\", \"ephemeral\", \"errors\"]);\n\nif (req.origem === \"meta\") {\n  for (const entry of body.entry ?? []) {\n    for (const ch of entry.changes ?? []) {\n      if (ch.field && ch.field !== \"messages\") continue;\n      const v = ch.value ?? {};\n      const pnid = v.metadata?.phone_number_id;\n      const contatos = v.contacts ?? [];\n      for (const m of v.messages ?? []) {\n        if (IGNORAR.has(m.type)) continue;\n        const contato = contatos.find((x) => x.wa_id === m.from) ?? (contatos.length === 1 ? contatos[0] : {});\n        // Com \"usernames\" (2026) a Meta pode mandar só o id do usuário, sem telefone. A agenda\n        // identifica o cliente pelo telefone, então essas mensagens não têm como ser atendidas.\n        const waId = String(m.from ?? contato.wa_id ?? \"\").replace(/\\D/g, \"\");\n        if (!waId) continue;\n        let type = \"text\", text = \"\", replyId = \"\", title = \"\";\n        if (m.type === \"text\") text = m.text?.body ?? \"\";\n        else if (m.type === \"interactive\") {\n          const r = m.interactive?.button_reply ?? m.interactive?.list_reply ?? {};\n          type = \"reply\";\n          replyId = r.id ?? \"\";\n          title = r.title ?? \"\";\n        } else if (m.type === \"button\") {\n          type = \"reply\";\n          replyId = m.button?.payload ?? \"\";\n          title = m.button?.text ?? \"\";\n        } else {\n          type = \"unsupported\";\n          text = m[m.type]?.caption ?? \"\";\n        }\n        out.push({\n          json: {\n            cfg,\n            origem: \"meta\",\n            requestId: `meta-${m.id}`,\n            phoneNumberId: String(pnid ?? \"\"),\n            waId,\n            phone: paraE164(waId),\n            profileName: contato.profile?.name ?? null,\n            message: { id: m.id, type, text: String(text).trim().slice(0, 2000), replyId: String(replyId), title: String(title), timestamp: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : new Date().toISOString() },\n          },\n        });\n      }\n    }\n  }\n  out.sort((a, b) => a.json.message.timestamp.localeCompare(b.json.message.timestamp));\n} else {\n  // Formato simplificado dos nossos testes:\n  // { requestId, phoneNumberId, customer: { phone, name }, message: { id, type, text, replyId } }\n  const tel = String(body.customer?.phone ?? \"\").replace(/\\D/g, \"\");\n  if (!body.phoneNumberId) throw new Error(\"phoneNumberId obrigatório\");\n  if (!tel) throw new Error(\"Telefone do cliente obrigatório\");\n  const m = body.message ?? {};\n  const replyId = String(m.replyId ?? \"\");\n  if (!replyId && !String(m.text ?? \"\").trim()) throw new Error(\"Texto da mensagem obrigatório\");\n  out.push({\n    json: {\n      cfg,\n      origem: \"teste\",\n      requestId: body.requestId ?? `teste-${Date.now()}`,\n      phoneNumberId: String(body.phoneNumberId),\n      waId: tel,\n      phone: paraE164(tel),\n      profileName: body.customer?.name ?? null,\n      message: { id: m.id ?? `teste-${Date.now()}`, type: replyId ? \"reply\" : \"text\", text: String(m.text ?? \"\").trim().slice(0, 2000), replyId, title: String(m.title ?? \"\"), timestamp: new Date().toISOString() },\n    },\n  });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "cvx-0024-uma-mensagem-por-vez",
+      "name": "Uma mensagem por vez",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0025-carregar-conversa",
+      "name": "Carregar conversa",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        380
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_conversas"
+        },
+        "resource": "row",
+        "operation": "get",
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chave",
+              "condition": "eq",
+              "keyValue": "={{ $json.phoneNumberId + ':' + $json.phone }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "cvx-0026-montar-contexto",
+      "name": "Montar contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        380
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Junta a mensagem com o estado salvo da conversa (tabela convexa_conversas).\nconst m = $(\"Uma mensagem por vez\").first().json;\nconst linha = $input.first().json ?? {};\nlet conv = {};\ntry { conv = linha.conversa ? JSON.parse(linha.conversa) : {}; } catch (e) { conv = {}; }\nconv = { mode: \"AI\", flow: null, step: \"IDLE\", data: {}, ...conv };\n\n// A Meta reenvia o mesmo evento se não recebeu 200 a tempo: não responde duas vezes\nif (linha.lastMessageId && linha.lastMessageId === m.message.id) return [{ json: { ...m, duplicada: true } }];\n\nconst agora = Date.now();\nconst N = (s) => String(s ?? \"\").normalize(\"NFD\").replace(/[̀-ͯ]/g, \"\").toLowerCase().trim();\nconst t = N(m.message.text);\nconst rid = m.message.replyId ?? \"\";\nconst parado = (h) => conv.stepAt && agora - Date.parse(conv.stepAt) > h * 3600e3;\nconst zerar = () => Object.assign(conv, { step: \"IDLE\", flow: null, data: {} });\n\n// atendimento humano vence sozinho\nif (conv.mode === \"HUMAN\" && conv.humanUntil && Date.parse(conv.humanUntil) < agora) Object.assign(conv, { mode: \"AI\", humanUntil: null });\n\nif (conv.mode !== \"HUMAN\") {\n  // conversa abandonada no meio: depois de 2 h recomeça (a resposta ao lembrete vale por 30 h)\n  if (conv.step !== \"IDLE\" && parado(conv.step === \"WAITING_APPOINTMENT_CONFIRMATION_REPLY\" ? 30 : 2)) zerar();\n  // \"menu\", \"sair\"... ou um botão do menu: recomeça de qualquer ponto\n  if (/^(menu|inicio|voltar|sair|parar|reiniciar|comecar|recomecar|cancelar tudo)$/.test(t) || rid.startsWith(\"menu:\")) zerar();\n  // botão de um lembrete antigo: vai para a confirmação mesmo que a conversa tenha mudado\n  if (rid.startsWith(\"lem:\") && conv.step !== \"WAITING_APPOINTMENT_CONFIRMATION_REPLY\") Object.assign(conv, { step: \"WAITING_APPOINTMENT_CONFIRMATION_REPLY\", flow: \"lembrete\", data: { appointmentId: rid.split(\":\")[2] ?? null } });\n}\n\nreturn [{ json: { ...m, duplicada: false, conversation: conv, ultimaEntradaAnterior: linha.lastInboundAt ?? null, replies: [], events: [], alerts: [] } }];\n"
+      }
+    },
+    {
+      "id": "cvx-0028-mensagem-nova-",
+      "name": "Mensagem nova?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        380
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c27",
+              "leftValue": "={{ $json.duplicada }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0029-proxima-mensagem",
+      "name": "Próxima mensagem",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5000,
+        700
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "cvx-0030-call-convexa-10-dados-do-cliente-",
+      "name": "Call 'Convexa - 10 Dados do Cliente'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "u5PofWGIegW0fxr1",
+          "cachedResultName": "Convexa - 10 Dados do Cliente",
+          "cachedResultUrl": "/workflow/u5PofWGIegW0fxr1"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cvx-0032-seguir-conversa-",
+      "name": "Seguir conversa?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c31",
+              "leftValue": "={{ $json.result?.parar === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0034-convexa-ou-atendente-",
+      "name": "Convexa ou Atendente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        220
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c33",
+              "leftValue": "={{ $json.conversation.mode }}",
+              "rightValue": "HUMAN",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0047-switch",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3300,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c35",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_CUSTOMER_NAME",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_CUSTOMER_NAME"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c36",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_SERVICE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_SERVICE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c37",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_DATE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_DATE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c38",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_TIME",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_TIME"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c39",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_APPOINTMENT_CONFIRMATION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_APPOINTMENT_CONFIRMATION"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c40",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_APPOINTMENT_SELECTION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_APPOINTMENT_SELECTION"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c41",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_RESCHEDULE_DATE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_RESCHEDULE_DATE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c42",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_RESCHEDULE_TIME",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_RESCHEDULE_TIME"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c43",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_RESCHEDULE_CONFIRMATION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_RESCHEDULE_CONFIRMATION"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c44",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_CANCEL_SELECTION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_CANCEL_SELECTION"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c45",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_CANCEL_CONFIRMATION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_CANCEL_CONFIRMATION"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c46",
+                    "leftValue": "={{ $json.conversation.step }}",
+                    "rightValue": "WAITING_APPOINTMENT_CONFIRMATION_REPLY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WAITING_APPOINTMENT_CONFIRMATION_REPLY"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Outros (IDLE)"
+        }
+      }
+    },
+    {
+      "id": "cvx-0048-resultado",
+      "name": "Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4120,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ctx = $input.first().json;\nctx.replies ??= []; ctx.events ??= []; ctx.alerts ??= [];\nreturn [{ json: ctx }];"
+      }
+    },
+    {
+      "id": "cvx-0049-linha-da-conversa",
+      "name": "Linha da conversa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4340,
+        560
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Estado final da conversa: vira a linha da tabela convexa_conversas.\nconst ctx = $input.first().json;\nconst conv = ctx.conversation ?? { mode: \"AI\", step: \"IDLE\", flow: null, data: {} };\nconst linha = {\n  chave: `${ctx.phoneNumberId}:${ctx.phone}`,\n  phoneNumberId: String(ctx.phoneNumberId ?? \"\"),\n  waId: String(ctx.waId ?? \"\"),\n  phone: String(ctx.phone ?? \"\"),\n  nome: String(ctx.session?.customer?.name ?? ctx.profileName ?? \"\"),\n  mode: conv.mode ?? \"AI\",\n  step: conv.step ?? \"IDLE\",\n  conversa: JSON.stringify(conv),\n  lastMessageId: String(ctx.message?.id ?? \"\"),\n  lastInboundAt: new Date().toISOString(),\n};\nreturn [{ json: linha }];\n"
+      }
+    },
+    {
+      "id": "cvx-0050-falha-no-fluxo",
+      "name": "Falha no fluxo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3900,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Um subworkflow falhou: pede desculpas ao cliente, recomeça a conversa e avisa a equipe (WF14).\nconst base = $(\"Montar contexto\").first().json;\nconst erro = $input.first().json ?? {};\nconst mensagem = String(erro.error?.message ?? erro.error ?? erro.message ?? \"erro desconhecido\").slice(0, 500);\nlet sessao = null;\ntry { sessao = $(\"Call 'Convexa - 10 Dados do Cliente'\").first().json?.session ?? null; } catch (e) { sessao = null; }\nreturn [\n  {\n    json: {\n      ...base,\n      session: sessao,\n      conversation: { ...base.conversation, step: \"IDLE\", flow: null, data: {} },\n      replies: [{ kind: \"text\", text: \"Desculpe, tive um problema aqui 😕 Pode repetir, por favor? Se preferir, digite *atendente*.\" }],\n      events: [],\n      alerts: [{ tipo: \"FALHA_NO_FLUXO\", mensagem, detalhe: { passo: base.conversation?.step, texto: base.message?.text?.slice(0, 200) }, chave: `FALHA:${base.phoneNumberId}:${new Date().toISOString().slice(0, 13)}`, origem: \"WF00\" }],\n    },\n  },\n];\n"
+      }
+    },
+    {
+      "id": "cvx-0051-call-convexa-01-entendendo-a-mensagem-",
+      "name": "Call 'Convexa - 01 Entendendo a mensagem'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3720,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "FjGdfMtAM5nAZu4Q",
+          "cachedResultName": "Convexa - 01 Entendendo a mensagem",
+          "cachedResultUrl": "/workflow/FjGdfMtAM5nAZu4Q"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cvx-0052-call-convexa-02-criando-agendamento-",
+      "name": "Call 'Convexa - 02 Criando Agendamento'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3720,
+        160
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "rqqKIPjaeAqEy8GW",
+          "cachedResultName": "Convexa - 02 Criando Agendamento",
+          "cachedResultUrl": "/workflow/rqqKIPjaeAqEy8GW"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cvx-0053-call-convexa-06-informacoes-de-agendamen",
+      "name": "Call 'Convexa - 06 Informações de Agendamento'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3720,
+        320
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "wHl9gupQNIMgqkid",
+          "cachedResultName": "Convexa - 06 Informações de Agendamento",
+          "cachedResultUrl": "/workflow/wHl9gupQNIMgqkid"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cvx-0054-call-convexa-04-reagendando-agendamento-",
+      "name": "Call 'Convexa - 04 Reagendando Agendamento'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3720,
+        480
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "3vGOPsRRUJxxJtqm",
+          "cachedResultName": "Convexa - 04 Reagendando Agendamento",
+          "cachedResultUrl": "/workflow/3vGOPsRRUJxxJtqm"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cvx-0055-call-convexa-05-cancelando-agendamento-",
+      "name": "Call 'Convexa - 05 Cancelando Agendamento'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3720,
+        640
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "teeIpYOjy1LeRaHT",
+          "cachedResultName": "Convexa - 05 Cancelando Agendamento",
+          "cachedResultUrl": "/workflow/teeIpYOjy1LeRaHT"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cvx-0056-call-convexa-12-confirmacao-de-agendamen",
+      "name": "Call 'Convexa - 12 Confirmação de Agendamento'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3720,
+        800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "P5jQ0lMlJKm3n4Z7",
+          "cachedResultName": "Convexa - 12 Confirmação de Agendamento",
+          "cachedResultUrl": "/workflow/P5jQ0lMlJKm3n4Z7"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cvx-0057-call-convexa-09-transferencia-para-atend",
+      "name": "Call 'Convexa - 09 Transferência para Atendente'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3720,
+        -200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "cyESqJD5y2H5klTX",
+          "cachedResultName": "Convexa - 09 Transferência para Atendente",
+          "cachedResultUrl": "/workflow/cyESqJD5y2H5klTX"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cvx-0058-salvar-conversa",
+      "name": "Salvar conversa",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4340,
+        400
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "convexa_conversas"
+        },
+        "resource": "row",
+        "operation": "upsert",
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chave",
+              "condition": "eq",
+              "keyValue": "={{ $json.chave }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0059-preparar-envio",
+      "name": "Preparar envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4560,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const r = $('Resultado').first().json;\nconst req = $('Ler requisição').first().json;\nconst simular = r.origem === \"teste\" && req.body?.enviar !== true;\nreturn [{ json: { acao: \"enviar\", cfg: r.cfg, origem: r.origem, simular, phoneNumberId: r.phoneNumberId, waId: r.waId, replies: r.replies ?? [] } }];"
+      }
+    },
+    {
+      "id": "cvx-0060-call-convexa-15-integracao-meta-enviar-",
+      "name": "Call 'Convexa - 15 Integração Meta' (enviar)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4780,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "cvxIntegraMeta15",
+          "cachedResultName": "Convexa - 15 Integração Meta (envio e assinatura)",
+          "cachedResultUrl": "/workflow/cvxIntegraMeta15"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "cvx-0061-preparar-registros",
+      "name": "Preparar registros",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5000,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const r = $('Resultado').first().json;\nreturn [{ json: { cfg: r.cfg, phoneNumberId: r.phoneNumberId, waId: r.waId, phone: r.phone, nome: r.session?.customer?.name ?? r.profileName ?? \"\", events: r.events ?? [], alerts: r.alerts ?? [], envio: $input.first().json ?? {} } }];"
+      }
+    },
+    {
+      "id": "cvx-0062-call-convexa-16-registros-",
+      "name": "Call 'Convexa - 16 Registros'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        5220,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "cvxRegistros0016",
+          "cachedResultName": "Convexa - 16 Registros",
+          "cachedResultUrl": "/workflow/cvxRegistros0016"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "cvx-0064-era-teste-",
+      "name": "Era teste?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c63",
+              "leftValue": "={{ $('Ler requisição').first().json.origem }}",
+              "rightValue": "teste",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "cvx-0065-resumo-do-teste",
+      "name": "Resumo do teste",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "let r = null;\ntry { r = $('Resultado').first().json; } catch (e) { r = null; }\nif (!r) return [{ json: { success: true, duplicada: true, replies: [] } }];\nreturn [{ json: { success: true, replies: r.replies ?? [], conversation: { mode: r.conversation?.mode, flow: r.conversation?.flow, step: r.conversation?.step }, events: r.events ?? [], alerts: (r.alerts ?? []).map((a) => a.tipo) } }];"
+      }
+    },
+    {
+      "id": "cvx-0066-respond-to-webhook1",
+      "name": "Respond to Webhook1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2420,
+        120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook (verificação da Meta)": {
+      "main": [
+        [
+          {
+            "node": "Conferir token de verificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferir token de verificação": {
+      "main": [
+        [
+          {
+            "node": "Token confere?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token confere?": {
+      "main": [
+        [
+          {
+            "node": "Devolver desafio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recusar verificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Ler requisição",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler requisição": {
+      "main": [
+        [
+          {
+            "node": "Veio da Meta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Veio da Meta?": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 15 Integração Meta' (assinatura)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validar token de teste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 15 Integração Meta' (assinatura)": {
+      "main": [
+        [
+          {
+            "node": "API Autorizada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar token de teste": {
+      "main": [
+        [
+          {
+            "node": "API Autorizada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Autorizada?": {
+      "main": [
+        [
+          {
+            "node": "Responder já?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 401": {
+      "main": [
+        [
+          {
+            "node": "Recusa por configuração?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recusa por configuração?": {
+      "main": [
+        [
+          {
+            "node": "Alerta de configuração",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta de configuração": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 14 Tratamento de Erros'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder já?": {
+      "main": [
+        [
+          {
+            "node": "Responder à Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliza Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder à Meta": {
+      "main": [
+        [
+          {
+            "node": "Normaliza Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliza Texto": {
+      "main": [
+        [
+          {
+            "node": "Uma mensagem por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uma mensagem por vez": {
+      "main": [
+        [
+          {
+            "node": "Era teste?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Carregar conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carregar conversa": {
+      "main": [
+        [
+          {
+            "node": "Montar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar contexto": {
+      "main": [
+        [
+          {
+            "node": "Mensagem nova?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensagem nova?": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 10 Dados do Cliente'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Próxima mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 10 Dados do Cliente'": {
+      "main": [
+        [
+          {
+            "node": "Seguir conversa?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha no fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seguir conversa?": {
+      "main": [
+        [
+          {
+            "node": "Convexa ou Atendente?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convexa ou Atendente?": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 09 Transferência para Atendente'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 01 Entendendo a mensagem'": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha no fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 02 Criando Agendamento'": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha no fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 06 Informações de Agendamento'": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha no fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 04 Reagendando Agendamento'": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha no fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 05 Cancelando Agendamento'": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha no fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 12 Confirmação de Agendamento'": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha no fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 01 Entendendo a mensagem'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 02 Criando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 02 Criando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 02 Criando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 02 Criando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 06 Informações de Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 04 Reagendando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 04 Reagendando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 04 Reagendando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 05 Cancelando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 05 Cancelando Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 12 Confirmação de Agendamento'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Convexa - 01 Entendendo a mensagem'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 09 Transferência para Atendente'": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha no fluxo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Falha no fluxo": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resultado": {
+      "main": [
+        [
+          {
+            "node": "Linha da conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linha da conversa": {
+      "main": [
+        [
+          {
+            "node": "Salvar conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar conversa": {
+      "main": [
+        [
+          {
+            "node": "Preparar envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar envio": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 15 Integração Meta' (enviar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 15 Integração Meta' (enviar)": {
+      "main": [
+        [
+          {
+            "node": "Preparar registros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar registros": {
+      "main": [
+        [
+          {
+            "node": "Call 'Convexa - 16 Registros'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Convexa - 16 Registros'": {
+      "main": [
+        [
+          {
+            "node": "Próxima mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Próxima mensagem": {
+      "main": [
+        [
+          {
+            "node": "Uma mensagem por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Era teste?": {
+      "main": [
+        [
+          {
+            "node": "Resumo do teste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resumo do teste": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "gwRuN7kMLozuUyEf"
+  },
+  "pinData": {},
+  "active": false,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

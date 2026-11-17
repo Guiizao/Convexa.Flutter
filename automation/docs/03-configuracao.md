@@ -148,7 +148,7 @@ chip novo ou apague a conta do app nesse número antes de cadastrar.
    Phone Number ID, o WABA ID, o token e o App Secret. O token e o secret vão cifrados para a
    ConvexaAPI e nunca voltam para a tela.
 8. **Versão da API:** confira em *Configuração da API* qual versão aparece no exemplo de `curl`
-   (ex.: `v24.0`) e coloque em `GRAPH_API_VERSION` no `.env`
+   (ex.: `v25.0`) e coloque em `GRAPH_API_VERSION` no `.env`
    (`docker compose up -d n8n` para aplicar).
 
 **Teste:** mande "oi" para o número. O bot deve responder com o menu. Se não responder, veja as

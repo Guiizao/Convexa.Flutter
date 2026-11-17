@@ -1,0 +1,370 @@
+{
+  "id": "rqqKIPjaeAqEy8GW",
+  "name": "Convexa - 02 Criando Agendamento",
+  "nodes": [
+    {
+      "id": "cvx-0082-when-executed-by-another-workflow",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "cvx-0083-entrar",
+      "name": "Entrar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Contexto da conversa que veio do workflow chamador\nconst ctx = JSON.parse(JSON.stringify($('When Executed by Another Workflow').first().json));\nctx.replies ??= []; ctx.events ??= []; ctx.alerts ??= [];\nctx.conversation ??= { mode: \"AI\", flow: null, step: \"IDLE\", data: {} };\n\ndelete ctx.result;\nctx._res = {};\nctx._voltas = 0;\nctx._snap = JSON.parse(JSON.stringify({ replies: ctx.replies, events: ctx.events, alerts: ctx.alerts, conversation: ctx.conversation }));\nreturn [{ json: ctx }];"
+      }
+    },
+    {
+      "id": "cvx-0084-logica",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ctx = $input.first().json;\n// cada volta recomeça do mesmo ponto (o que já foi buscado fica em ctx._res)\nconst __s = JSON.parse(JSON.stringify(ctx._snap));\nctx.replies = __s.replies; ctx.events = __s.events; ctx.alerts = __s.alerts; ctx.conversation = __s.conversation;\ndelete ctx.result; delete ctx._next;\nctx._voltas = (ctx._voltas ?? 0) + 1;\nif (ctx._voltas > 40) throw new Error(\"Lógica: chamadas demais para uma mensagem\");\n// Biblioteca comum dos workflows \"Convexa - NN\". O gerador (build.mjs) cola este arquivo no começo\n// de cada node \"Lógica\". Espera `ctx` (o contexto da conversa) já definido.\n//\n// Como funciona o laço \"Lógica ⇄ Chamar API / Chamar workflow\":\n// - a Lógica roda do começo a cada volta; o que já foi buscado fica guardado em ctx._res[chave];\n// - api()/chamarWf() devolvem o resultado guardado ou, se ainda não existe, pedem a chamada e\n//   interrompem esta volta (PENDENTE). Depois da chamada, a Lógica roda de novo;\n// - respostas, estado e eventos são restaurados no começo de cada volta (ctx._snap), então\n//   nada sai duplicado mesmo rodando várias vezes.\n\nconst PENDENTE = { pendente: true };\nconst cfg = ctx.cfg;\nconst entrada = ctx.input ?? {};\nconst msg = ctx.message ?? { type: \"text\", text: \"\" };\nconst T = String(msg.text || msg.title || \"\").trim();\nconst RID = String(msg.replyId || \"\");\n\n// ---------------------------------------------------------------- texto\nconst N = (s) => String(s ?? \"\").normalize(\"NFD\").replace(/[̀-ͯ]/g, \"\").toLowerCase().replace(/\\s+/g, \" \").trim();\nconst nt = N(T);\nconst primeiroNome = (s) => String(s ?? \"\").trim().split(/\\s+/)[0] || \"\";\nconst nomeCliente = () => primeiroNome(ctx.session?.customer?.name || ctx.profileName || \"\");\nconst nomeEmpresa = () => ctx.session?.business?.name || \"nossa equipe\";\nconst ehSim = (t = nt) => /^(sim|s|ss|isso|isso mesmo|confirmo|confirmar|confirma|pode|pode sim|pode ser|ok|okay|certo|claro|bora|fechado|positivo|uhum|aham|perfeito|beleza|blz|quero|yes)\\b/.test(t);\nconst ehNao = (t = nt) => /^(nao|n|nn|negativo|nope|deixa|deixa pra la|melhor nao|agora nao|nao quero|desisto|no)\\b/.test(t);\n\n// ---------------------------------------------------------------- respostas\nconst responder = (texto) => ctx.replies.push({ kind: \"text\", text: texto });\nconst botoes = (texto, lista, extra = {}) => ctx.replies.push({ kind: \"buttons\", text: texto, buttons: lista.map(([id, title]) => ({ id, title })), ...extra });\nconst lista = (texto, botao, linhas, extra = {}) =>\n  ctx.replies.push({ kind: \"list\", text: texto, button: botao, sections: [{ title: extra.secao ?? \"Opções\", rows: linhas }], ...(extra.footer ? { footer: extra.footer } : {}) });\nconst conv = ctx.conversation;\nconst passo = (flow, step, data) => {\n  conv.flow = flow;\n  conv.step = step;\n  if (data !== undefined) conv.data = data;\n  conv.stepAt = new Date().toISOString();\n};\nconst ocioso = () => passo(null, \"IDLE\", {});\nconst dados = () => (conv.data ??= {});\n\nconst OPCOES_MENU = [\n  [\"menu:agendar\", \"Agendar horário\", \"Marcar um novo horário\"],\n  [\"menu:meus\", \"Meus agendamentos\", \"Ver o que já está marcado\"],\n  [\"menu:remarcar\", \"Remarcar\", \"Trocar dia ou horário\"],\n  [\"menu:cancelar\", \"Cancelar\", \"Desmarcar um horário\"],\n  [\"menu:servicos\", \"Serviços e preços\", \"O que fazemos e quanto custa\"],\n  [\"menu:info\", \"Endereço e horários\", \"Onde fica e quando abre\"],\n  [\"menu:atendente\", \"Falar com atendente\", \"Uma pessoa da equipe\"],\n];\nfunction menu(texto) {\n  lista(texto ?? \"Como posso ajudar?\", \"Ver opções\", OPCOES_MENU.map(([id, title, description]) => ({ id, title, description })), { secao: \"Menu\" });\n}\n\n// ---------------------------------------------------------------- API e subworkflows\nconst ok = (r) => !!r && r.status >= 200 && r.status < 300;\nconst msgApi = (r) => (r?.body && typeof r.body === \"object\" ? r.body.message : null) || null;\n/** Chamada à ConvexaAPI. `semToken` para /internal/conversation/session (só a chave interna). */\nfunction api(chave, method, path, opts = {}) {\n  if (chave in ctx._res) return ctx._res[chave];\n  ctx._next = { kind: \"api\", key: chave, method, url: cfg.apiUrl + path, query: opts.query ?? null, body: opts.body ?? null, token: opts.semToken ? null : ctx.session?.token ?? null };\n  throw PENDENTE;\n}\n/** Chama outro workflow Convexa (pelo apelido em cfg.wf) e devolve o contexto que ele produziu. */\nfunction chamarWf(chave, apelido, input = {}) {\n  if (chave in ctx._res) return ctx._res[chave];\n  const workflowId = cfg.wf[apelido];\n  if (!workflowId) throw new Error(`workflow ${apelido} não configurado`);\n  ctx._next = { kind: \"wf\", key: chave, workflowId, input };\n  throw PENDENTE;\n}\n/** Junta no contexto atual o que o subworkflow respondeu e mudou. */\nfunction aplicar(r) {\n  if (!r?.ctx) return;\n  ctx.replies.push(...(r.ctx.replies ?? []));\n  ctx.events.push(...(r.ctx.events ?? []));\n  ctx.alerts.push(...(r.ctx.alerts ?? []));\n  if (r.ctx.conversation) {\n    for (const k of Object.keys(conv)) delete conv[k];\n    Object.assign(conv, r.ctx.conversation);\n  }\n}\nconst alertar = (tipo, mensagem, detalhe = {}) => ctx.alerts.push({ tipo, mensagem, detalhe, chave: `${tipo}:${ctx.phoneNumberId ?? \"\"}:${new Date().toISOString().slice(0, 13)}` });\nfunction instavel(r, onde) {\n  alertar(\"API_INSTAVEL\", `Falha ao ${onde} (HTTP ${r?.status ?? \"sem resposta\"})`, { status: r?.status, erro: r?.erro ?? msgApi(r) });\n  responder(\"Estou com uma instabilidade agora 😕 Pode tentar de novo em alguns minutos? Se preferir, digite *atendente*.\");\n}\n\n// ---------------------------------------------------------------- datas (sempre no fuso da empresa, pelo \"now\" da API)\nconst DIAS = [\"domingo\", \"segunda\", \"terça\", \"quarta\", \"quinta\", \"sexta\", \"sábado\"];\nconst DIAS_N = [\"domingo\", \"segunda\", \"terca\", \"quarta\", \"quinta\", \"sexta\", \"sabado\"];\nconst MESES = [\"janeiro\", \"fevereiro\", \"marco\", \"abril\", \"maio\", \"junho\", \"julho\", \"agosto\", \"setembro\", \"outubro\", \"novembro\", \"dezembro\"];\nconst hoje = () => ctx.session?.now?.date ?? new Date().toISOString().slice(0, 10);\nconst agoraHora = () => ctx.session?.now?.time ?? \"00:00\";\nconst tz = () => ctx.session?.business?.timezone ?? \"America/Sao_Paulo\";\nconst ymd = (y, m, d) => `${String(y).padStart(4, \"0\")}-${String(m).padStart(2, \"0\")}-${String(d).padStart(2, \"0\")}`;\nconst partes = (s) => s.split(\"-\").map(Number);\nconst somarDias = (s, n) => {\n  const [y, m, d] = partes(s);\n  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);\n};\nconst diaSemana = (s) => {\n  const [y, m, d] = partes(s);\n  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();\n};\nconst dataValida = (y, m, d) => {\n  const t = new Date(Date.UTC(y, m - 1, d));\n  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;\n};\nfunction fmtData(s) {\n  if (!s) return \"\";\n  const [, m, d] = partes(s);\n  const rot = s === hoje() ? \"hoje, \" : s === somarDias(hoje(), 1) ? \"amanhã, \" : \"\";\n  return `${rot}${DIAS[diaSemana(s)]} ${String(d).padStart(2, \"0\")}/${String(m).padStart(2, \"0\")}`;\n}\n/** \"hoje\", \"amanhã\", \"depois de amanhã\", \"sexta\", \"próxima segunda\", \"20/11\", \"20/11/2026\", \"dia 20\", \"20 de novembro\". */\nfunction lerData(texto) {\n  const t = N(texto);\n  if (!t) return null;\n  const base = hoje();\n  const [by, bm, bd] = partes(base);\n  if (/\\bdepois de amanha\\b/.test(t)) return somarDias(base, 2);\n  if (/\\bamanha\\b/.test(t)) return somarDias(base, 1);\n  if (/\\bhoje\\b/.test(t)) return base;\n  let m = t.match(/\\b(\\d{1,2})\\s*[\\/.-]\\s*(\\d{1,2})(?:\\s*[\\/.-]\\s*(\\d{2,4}))?\\b/);\n  if (m) {\n    const d = +m[1], mes = +m[2];\n    let y = m[3] ? +m[3] : by;\n    if (y < 100) y += 2000;\n    if (!dataValida(y, mes, d)) return null;\n    let s = ymd(y, mes, d);\n    if (!m[3] && s < base) s = ymd(y + 1, mes, d);\n    return s;\n  }\n  m = t.match(/\\b(\\d{1,2}) de (janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\\b/);\n  if (m) {\n    const d = +m[1], mes = MESES.indexOf(m[2]) + 1;\n    if (!dataValida(by, mes, d)) return null;\n    let s = ymd(by, mes, d);\n    if (s < base) s = ymd(by + 1, mes, d);\n    return s;\n  }\n  m = t.match(/\\bdia (\\d{1,2})\\b/);\n  if (m) {\n    const d = +m[1];\n    let y = by, mes = bm;\n    if (d < bd) mes += 1;\n    if (mes > 12) (mes = 1), (y += 1);\n    return dataValida(y, mes, d) ? ymd(y, mes, d) : null;\n  }\n  const curtos = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };\n  for (let i = 0; i < 7; i++) {\n    const re = new RegExp(`\\\\b(${DIAS_N[i]}|${Object.keys(curtos)[i]})(-feira)?\\\\b`);\n    if (re.test(t)) {\n      let delta = (i - diaSemana(base) + 7) % 7;\n      if (delta === 0 && /\\b(proxima|proximo|que vem)\\b/.test(t)) delta = 7;\n      return somarDias(base, delta);\n    }\n  }\n  if (/\\b(semana que vem|proxima semana)\\b/.test(t)) return somarDias(base, 7);\n  return null;\n}\n/** \"14h\", \"14:30\", \"14h30\", \"às 9\", \"9 da manhã\", \"3 da tarde\", \"meio-dia\". Devolve \"HH:MM\". */\nfunction lerHora(texto) {\n  const t = N(texto);\n  if (!t) return null;\n  if (/\\bmeio[ -]?dia\\b/.test(t)) return \"12:00\";\n  let m = t.match(/\\b(\\d{1,2})\\s*(?:h|hs|hrs?|horas?|:)\\s*(\\d{2})?\\b/) || t.match(/\\bas (\\d{1,2})(?::(\\d{2}))?\\b/) || t.match(/\\b(\\d{1,2})(?::(\\d{2}))? (?:da|de) (?:manha|tarde|noite)\\b/);\n  if (!m) return null;\n  let h = +m[1];\n  const min = m[2] ? +m[2] : 0;\n  if (/\\b(da|de) (tarde|noite)\\b/.test(t) && h >= 1 && h <= 11) h += 12;\n  if (h > 23 || min > 59) return null;\n  return `${String(h).padStart(2, \"0\")}:${String(min).padStart(2, \"0\")}`;\n}\n/** Instante ISO (com Z) de uma data e hora no fuso da empresa. */\nfunction instante(data, hora, zona = tz()) {\n  const [y, m, d] = partes(data);\n  const [hh, mm] = hora.split(\":\").map(Number);\n  const alvo = Date.UTC(y, m - 1, d, hh, mm);\n  const offset = (ms) => {\n    const p = Object.fromEntries(new Intl.DateTimeFormat(\"en-US\", { timeZone: zona, hourCycle: \"h23\", year: \"numeric\", month: \"2-digit\", day: \"2-digit\", hour: \"2-digit\", minute: \"2-digit\" }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));\n    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - ms;\n  };\n  let t = alvo - offset(alvo);\n  t = alvo - offset(t);\n  return new Date(t).toISOString();\n}\n\n// ---------------------------------------------------------------- dinheiro e duração\nconst reais = (c) => (c == null ? \"\" : \"R$ \" + (c / 100).toFixed(2).replace(\".\", \",\").replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\"));\nconst duracao = (min) => (!min ? \"\" : min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, \"0\") : \"\"}`);\n\n// ---------------------------------------------------------------- escolha de opções\n/** Número digitado sozinho (\"2\") para uma lista de n opções. */\nfunction numeroEscolhido(n) {\n  const m = nt.match(/^(?:opcao |numero |o |a )?(\\d{1,2})[.)]?$/);\n  if (!m) return null;\n  const i = +m[1] - 1;\n  return i >= 0 && i < n ? i : null;\n}\n/** Serviço citado no texto (pelo nome, sem números para não confundir com datas). */\nfunction acharServico(texto, servicos) {\n  const t = N(texto);\n  if (!t) return null;\n  let melhor = null, nota = 0;\n  for (const s of servicos) {\n    const nome = N(s.name);\n    if (!nome) continue;\n    if (t === nome) return s;\n    let p = 0;\n    if (t.includes(nome)) p = 100 + nome.length;\n    else {\n      const palavras = nome.split(\" \").filter((w) => w.length >= 4 && ![\"para\", \"com\", \"sem\", \"simples\"].includes(w));\n      const hits = palavras.filter((w) => new RegExp(`\\\\b${w.slice(0, Math.max(4, w.length - 2))}`).test(t)).length;\n      if (hits) p = hits * 10 + (hits === palavras.length ? 5 : 0);\n    }\n    if (p > nota) (nota = p), (melhor = s);\n  }\n  return melhor;\n}\nconst resumoAgendamento = (a) => `*${a.service?.name ?? \"Atendimento\"}* — ${fmtData(a.date)} às *${a.time}*${a.employee?.name ? ` com ${a.employee.name}` : \"\"}`;\n/** Escolhe um agendamento por botão/lista, número, data ou nome do serviço. */\nfunction acharAgendamento(ags) {\n  if (RID.startsWith(\"appt:\")) return ags.find((a) => a.id === RID.slice(5)) ?? null;\n  const i = numeroEscolhido(ags.length);\n  if (i !== null) return ags[i];\n  const d = lerData(T);\n  const porData = d ? ags.filter((a) => a.date === d) : [];\n  if (porData.length === 1) return porData[0];\n  const s = acharServico(T, ags.map((a) => ({ ...a.service, _a: a })));\n  return s?._a ?? null;\n}\nfunction listarAgendamentos(texto, ags, botao = \"Escolher\") {\n  lista(\n    texto,\n    botao,\n    ags.slice(0, 10).map((a) => ({ id: \"appt:\" + a.id, title: `${String(a.date).slice(8, 10)}/${String(a.date).slice(5, 7)} às ${a.time}`, description: `${a.service?.name ?? \"\"}${a.employee?.name ? \" · \" + a.employee.name : \"\"}` })),\n    { secao: \"Seus horários\" },\n  );\n}\n\n// ---------------------------------------------------------------- escolha de dia e horário (agendar e remarcar)\nconst BOTOES_DIA = [[\"dia:hoje\", \"Hoje\"], [\"dia:amanha\", \"Amanhã\"], [\"dia:outro\", \"Outro dia\"]];\nfunction perguntarDia(texto) {\n  botoes(`${texto}\\n\\nVocê também pode escrever, por exemplo: *sexta*, *20/11* ou *dia 25*.`, BOTOES_DIA);\n}\n/** Lê o dia da resposta. Devolve \"YYYY-MM-DD\", \"outro\" (pediu para digitar) ou null. */\nfunction diaDaResposta() {\n  if (RID === \"dia:hoje\") return hoje();\n  if (RID === \"dia:amanha\") return somarDias(hoje(), 1);\n  if (RID === \"dia:outro\") return \"outro\";\n  return lerData(T);\n}\nfunction validarDia(dia) {\n  if (dia < hoje()) return \"Essa data já passou 🙂 Qual outro dia fica bom?\";\n  if (dia > somarDias(hoje(), 120)) return \"Consigo agendar até 4 meses à frente. Qual dia mais próximo fica bom?\";\n  return null;\n}\n/** Mostra os horários livres em lista (até 10). */\nfunction mostrarHorarios(texto, slots, total) {\n  const varios = new Set(slots.map((s) => s.employeeId)).size > 1;\n  lista(\n    texto + (total > slots.length ? `\\n\\nNão achou o horário que queria? Escreva, por exemplo, *16h* que eu verifico.` : \"\"),\n    \"Ver horários\",\n    slots.slice(0, 10).map((s, i) => ({ id: \"slot:\" + i, title: s.time + (varios && s.employeeName ? ` · ${primeiroNome(s.employeeName)}` : \"\"), description: s.employeeName ? `com ${s.employeeName}` : \"\" })),\n    { secao: \"Horários livres\" },\n  );\n}\n/**\n * O cliente pediu um horário que não está entre os 10 primeiros livres que a API devolve.\n * Se a lista foi cortada (total > 10) e o horário é depois do último mostrado, ele pode estar\n * livre: tentamos reservar na confirmação, com cada profissional, e a API decide.\n */\nfunction horarioPedido(d, hora) {\n  const slots = d.slots ?? [];\n  const exato = slots.find((s) => s.time === hora);\n  if (exato) return { slot: exato };\n  const ultimo = slots.at(-1)?.time ?? \"00:00\";\n  if ((d.total ?? 0) > slots.length && hora > ultimo) {\n    const profissionais = [...new Map(slots.map((s) => [s.employeeId, s.employeeName])).entries()].map(([employeeId, employeeName]) => ({ employeeId, employeeName }));\n    return { tentativa: { time: hora, startAt: instante(d.date, hora), candidatos: profissionais } };\n  }\n  return null;\n}\n/** Horário escolhido na resposta (lista, número ou \"14h\"). */\nfunction horarioDaResposta(d) {\n  const slots = d.slots ?? [];\n  if (RID.startsWith(\"slot:\")) {\n    const s = slots[+RID.slice(5)];\n    return s ? { slot: s } : null;\n  }\n  const i = numeroEscolhido(slots.length);\n  if (i !== null) return { slot: slots[i] };\n  const h = lerHora(T);\n  return h ? horarioPedido(d, h) ?? { indisponivel: h } : null;\n}\nconst candidatosDe = (d) => (d.escolha?.slot ? [{ employeeId: d.escolha.slot.employeeId, startAt: d.escolha.slot.startAt }] : (d.escolha?.tentativa?.candidatos ?? []).map((c) => ({ employeeId: c.employeeId, startAt: d.escolha.tentativa.startAt })));\nconst horaEscolhida = (d) => d.escolha?.slot?.time ?? d.escolha?.tentativa?.time ?? \"\";\nconst profissionalEscolhido = (d) => d.escolha?.slot?.employeeName ?? (d.escolha?.tentativa?.candidatos?.length === 1 ? d.escolha.tentativa.candidatos[0].employeeName : null);\n\n/** Busca horários livres no WF03 e mostra. Devolve false se não deu (já respondeu ao cliente). */\nfunction buscarEMostrar(chave, d, servicoId, textoIntro) {\n  const r = chamarWf(chave, \"WF03\", { serviceId: servicoId, date: d.date, buscarProximos: true, dias: 7 });\n  const res = r.ctx?.result ?? {};\n  if (res.erro) {\n    instavel({ status: res.status, erro: res.erro }, \"consultar horários\");\n    return false;\n  }\n  if (!res.slots?.length) {\n    perguntarDia(`Não encontrei horários livres de ${fmtData(d.date)} até ${fmtData(somarDias(d.date, 7))} 😕 Quer tentar outra data?`);\n    d.date = null;\n    return false;\n  }\n  let aviso = \"\";\n  if (res.date !== d.date) aviso = `Em ${fmtData(d.date)} não há horários livres. O próximo dia com vaga é *${fmtData(res.date)}*.\\n\\n`;\n  d.date = res.date;\n  d.slots = res.slots;\n  d.total = res.totalSlots ?? res.slots.length;\n  d.escolha = null;\n  if (d.hora) {\n    const e = horarioPedido(d, d.hora);\n    d.hora = null;\n    if (e) {\n      d.escolha = e;\n      return \"escolhido\";\n    }\n    aviso += `O horário que você pediu não está livre.\\n\\n`;\n  }\n  mostrarHorarios(`${aviso}${textoIntro} ${fmtData(d.date)}:`, d.slots, d.total);\n  return true;\n}\n\ntry {\n  (function principal() {\n// WF02 — Criando Agendamento: serviço → dia → horário → confirmação → POST /appointments.\n// Passos: WAITING_SERVICE, WAITING_DATE, WAITING_TIME, WAITING_APPOINTMENT_CONFIRMATION.\nconst FLOW = \"agendar\";\nconst etapa = entrada.acao === \"iniciar\" ? \"INICIO\" : conv.step;\nconst d = etapa === \"INICIO\" ? {} : { ...(conv.data ?? {}) };\nd.tentativas ??= 0;\n\nconst servicosResp = chamarWf(\"svc\", \"WF07\", { acao: \"dados\" });\nconst sres = servicosResp.ctx?.result ?? {};\nif (sres.erro) return instavel({ status: sres.status, erro: sres.erro }, \"listar os serviços\");\nconst servicos = sres.services ?? [];\nif (!servicos.length) {\n  ocioso();\n  return botoes(`A *${nomeEmpresa()}* ainda não tem serviços disponíveis para agendar por aqui 😕`, [[\"menu:atendente\", \"Falar com atendente\"], [\"menu:inicio\", \"Menu\"]]);\n}\n\nfunction perguntarServico(texto) {\n  passo(FLOW, \"WAITING_SERVICE\", d);\n  if (servicos.length <= 3)\n    return botoes(texto, servicos.map((s) => [\"svc:\" + s.id, s.name]));\n  lista(\n    texto,\n    \"Ver serviços\",\n    servicos.slice(0, 10).map((s) => ({ id: \"svc:\" + s.id, title: s.name, description: [reais(s.priceCents), duracao(s.durationMinutes)].filter(Boolean).join(\" · \") })),\n    { secao: \"Serviços\" },\n  );\n  if (servicos.length > 10) responder(\"Não achou na lista? Escreva o nome do serviço 🙂\");\n}\nfunction irParaDia() {\n  if (d.date) return irParaHorarios();\n  passo(FLOW, \"WAITING_DATE\", d);\n  perguntarDia(`Ótimo, *${d.service.name}*! Para qual dia? 📅`);\n}\nfunction irParaHorarios(chave = \"disp\") {\n  const r = buscarEMostrar(chave, d, d.service.id, \"Horários livres para\");\n  if (r === \"escolhido\") return confirmar();\n  passo(FLOW, r ? \"WAITING_TIME\" : \"WAITING_DATE\", d);\n}\nfunction confirmar() {\n  passo(FLOW, \"WAITING_APPOINTMENT_CONFIRMATION\", d);\n  const prof = profissionalEscolhido(d);\n  botoes(\n    `Confere os dados? 👇\\n\\n✂️ *${d.service.name}*\\n📅 ${fmtData(d.date)} às *${horaEscolhida(d)}*${prof ? `\\n👤 ${prof}` : \"\"}${d.service.priceCents != null ? `\\n💰 ${reais(d.service.priceCents)}` : \"\"}`,\n    [[\"conf:sim\", \"Confirmar\"], [\"conf:trocar\", \"Trocar horário\"], [\"conf:nao\", \"Desistir\"]],\n  );\n}\nfunction escolherServico(texto) {\n  if (RID.startsWith(\"svc:\")) return servicos.find((s) => s.id === RID.slice(4)) ?? null;\n  const i = numeroEscolhido(Math.min(servicos.length, 10));\n  if (i !== null) return servicos[i];\n  return acharServico(texto, servicos);\n}\nfunction naoEntendi(pergunta) {\n  d.tentativas += 1;\n  if (d.tentativas >= 3) {\n    ocioso();\n    return botoes(\"Acho que não estou conseguindo te ajudar por aqui 😕 Quer falar com uma pessoa da equipe?\", [[\"menu:atendente\", \"Falar com atendente\"], [\"menu:inicio\", \"Ver o menu\"]]);\n  }\n  pergunta();\n}\n\nswitch (etapa) {\n  case \"INICIO\": {\n    d.service = entrada.servico ? acharServico(entrada.servico, servicos) : null;\n    d.service ??= acharServico(entrada.texto ?? T, servicos);\n    if (!d.service && servicos.length === 1) d.service = servicos[0];\n    const dia = lerData(entrada.data || entrada.texto || T);\n    if (dia && !validarDia(dia)) d.date = dia;\n    d.hora = lerHora(entrada.horario || entrada.texto || T);\n    if (!d.service) return perguntarServico(\"Vamos agendar! 😊 Qual serviço você quer?\");\n    return irParaDia();\n  }\n  case \"WAITING_SERVICE\": {\n    const s = escolherServico(T);\n    if (!s) return naoEntendi(() => perguntarServico(\"Não encontrei esse serviço 🤔 Escolha um da lista:\"));\n    d.service = s;\n    d.tentativas = 0;\n    const dia = lerData(T);\n    if (dia && !validarDia(dia)) d.date = dia;\n    d.hora ??= lerHora(T);\n    return irParaDia();\n  }\n  case \"WAITING_DATE\": {\n    const dia = diaDaResposta();\n    if (dia === \"outro\") {\n      passo(FLOW, \"WAITING_DATE\", d);\n      return responder(\"Pode escrever o dia 🙂 Por exemplo: *sexta*, *20/11* ou *dia 25*.\");\n    }\n    if (!dia) return naoEntendi(() => (passo(FLOW, \"WAITING_DATE\", d), perguntarDia(\"Não entendi o dia 🤔\")));\n    const erro = validarDia(dia);\n    if (erro) return (passo(FLOW, \"WAITING_DATE\", d), perguntarDia(erro));\n    d.date = dia;\n    d.hora = lerHora(T);\n    d.tentativas = 0;\n    return irParaHorarios();\n  }\n  case \"WAITING_TIME\": {\n    const outroDia = RID ? null : lerData(T);\n    if (outroDia && outroDia !== d.date && !validarDia(outroDia)) {\n      d.date = outroDia;\n      d.hora = lerHora(T);\n      return irParaHorarios();\n    }\n    const e = horarioDaResposta(d);\n    if (!e) return naoEntendi(() => (passo(FLOW, \"WAITING_TIME\", d), mostrarHorarios(`Escolha um horário da lista para ${fmtData(d.date)}:`, d.slots ?? [], d.total ?? 0)));\n    if (e.indisponivel) {\n      passo(FLOW, \"WAITING_TIME\", d);\n      return mostrarHorarios(`O horário das *${e.indisponivel}* não está livre em ${fmtData(d.date)} 😕 Estes estão:`, d.slots ?? [], d.total ?? 0);\n    }\n    d.escolha = e;\n    d.tentativas = 0;\n    return confirmar();\n  }\n  case \"WAITING_APPOINTMENT_CONFIRMATION\": {\n    if (RID === \"conf:trocar\" || /\\b(trocar|outro horario|mudar)\\b/.test(nt)) {\n      if (d.slots?.length) {\n        d.escolha = null;\n        passo(FLOW, \"WAITING_TIME\", d);\n        return mostrarHorarios(`Sem problema! Horários livres para ${fmtData(d.date)}:`, d.slots, d.total ?? 0);\n      }\n      return irParaHorarios(\"disp_troca\");\n    }\n    if (RID === \"conf:nao\" || ehNao()) {\n      ocioso();\n      return responder(\"Tudo bem, não agendei nada 👍 Quando quiser, é só me chamar!\");\n    }\n    if (RID !== \"conf:sim\" && !ehSim()) {\n      const h = lerHora(T);\n      if (h) {\n        const e = horarioPedido(d, h);\n        if (e) {\n          d.escolha = e;\n          return confirmar();\n        }\n      }\n      return naoEntendi(confirmar);\n    }\n    const candidatos = candidatosDe(d);\n    let ultimo = null;\n    for (let i = 0; i < candidatos.length; i++) {\n      const c = candidatos[i];\n      const r = api(\"book\" + i, \"POST\", \"/internal/conversation/appointments\", { body: { serviceId: d.service.id, employeeId: c.employeeId, startAt: c.startAt } });\n      ultimo = r;\n      if (ok(r)) {\n        ocioso();\n        ctx.events.push({ tipo: \"agendado\", appointment: r.body });\n        return responder(`✅ *Agendado!*\\n\\n${resumoAgendamento(r.body)}\\n\\nVou te mandar um lembrete antes do horário. Para remarcar ou cancelar, é só me chamar aqui 😉`);\n      }\n      if (r.status !== 409) break;\n    }\n    if (ultimo && (ultimo.status === 409 || ultimo.status === 400)) {\n      responder(`Poxa, ${msgApi(ultimo) ? msgApi(ultimo).toLowerCase() : \"esse horário não está mais disponível\"} 😕 Vou buscar outros horários.`);\n      d.hora = null;\n      return irParaHorarios(\"disp_conflito\");\n    }\n    passo(FLOW, \"WAITING_APPOINTMENT_CONFIRMATION\", d);\n    return instavel(ultimo, \"criar o agendamento\");\n  }\n  default:\n    ocioso();\n    aplicar(chamarWf(\"wf01\", \"WF01\", {}));\n}\n\n  })();\n  ctx._next = { kind: \"fim\" };\n} catch (e) {\n  if (e !== PENDENTE) throw e;\n}\nreturn [{ json: ctx }];"
+      }
+    },
+    {
+      "id": "cvx-0087-proximo-passo",
+      "name": "Próximo passo",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        700,
+        200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c85",
+                    "leftValue": "={{ $json._next.kind }}",
+                    "rightValue": "api",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Chamar API"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c86",
+                    "leftValue": "={{ $json._next.kind }}",
+                    "rightValue": "wf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Chamar workflow"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Pronto"
+        }
+      }
+    },
+    {
+      "id": "cvx-0088-chamar-api",
+      "name": "Chamar API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        0
+      ],
+      "parameters": {
+        "method": "={{ $json._next.method }}",
+        "url": "={{ $json._next.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json._next.query ?? {}) }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($json._next.token ? { Authorization: 'Bearer ' + $json._next.token } : {}) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._next.body ?? {}) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nCSP3kSFDlY3r6RU",
+          "name": "Convexa - Internal API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "cvx-0089-guardar-resposta",
+      "name": "Guardar resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ctx = $('Lógica').first().json;\nconst r = $input.first().json ?? {};\nlet status = Number(r.statusCode ?? 0);\nlet body = r.body ?? null;\nlet erro = null;\nif (r.error) {\n  erro = typeof r.error === \"string\" ? r.error : r.error.message ?? JSON.stringify(r.error).slice(0, 300);\n  status = Number(r.error.httpCode ?? r.error.status ?? 0) || 0;\n}\nif (typeof body === \"string\") { try { body = JSON.parse(body); } catch (e) {} }\nctx._res[ctx._next.key] = { status, body, erro };\ndelete ctx._next;\nreturn [{ json: ctx }];"
+      }
+    },
+    {
+      "id": "cvx-0090-preparar-chamada",
+      "name": "Preparar chamada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const c = $input.first().json;\nconst { _res, _snap, _next, _voltas, input, result, ...resto } = c;\nreturn [{ json: { ...resto, replies: [], events: [], alerts: [], input: _next.input ?? {} } }];"
+      }
+    },
+    {
+      "id": "cvx-0091-chamar-workflow",
+      "name": "Chamar workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1220,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Lógica').first().json._next.workflowId }}"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "cvx-0092-guardar-retorno",
+      "name": "Guardar retorno",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ctx = $('Lógica').first().json;\nconst out = $input.first().json ?? {};\nctx._res[ctx._next.key] = { ctx: { replies: out.replies ?? [], events: out.events ?? [], alerts: out.alerts ?? [], conversation: out.conversation ?? null, result: out.result ?? null } };\ndelete ctx._next;\nreturn [{ json: ctx }];"
+      }
+    },
+    {
+      "id": "cvx-0093-sair",
+      "name": "Sair",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const c = $input.first().json;\nconst { _res, _snap, _next, _voltas, input, ...resto } = c;\nreturn [{ json: resto }];"
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Entrar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrar": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Próximo passo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Próximo passo": {
+      "main": [
+        [
+          {
+            "node": "Chamar API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar chamada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sair",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamar API": {
+      "main": [
+        [
+          {
+            "node": "Guardar resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar resposta": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar chamada": {
+      "main": [
+        [
+          {
+            "node": "Chamar workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamar workflow": {
+      "main": [
+        [
+          {
+            "node": "Guardar retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar retorno": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "gwRuN7kMLozuUyEf"
+  },
+  "pinData": {},
+  "active": false,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
